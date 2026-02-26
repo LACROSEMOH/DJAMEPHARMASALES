@@ -18,7 +18,7 @@ const PRODUITS = [
   "Doliprane", "Augmentin", "Smecta", "Efferalgan", "Spasfon", "Autre",
 ];
 
-const STORAGE_KEY = "pharmasales_data";
+const STORAGE_KEY = "DjamePharmaSales_data";
 
 // ═══════════════════════════════════════════════
 // UTILITAIRES
@@ -75,7 +75,7 @@ function LoginScreen({ onLogin }) {
       <div style={{ width: "100%", maxWidth: 430 }}>
         <div style={{ textAlign: "center", marginBottom: 32, color: "white" }}>
           <div style={{ fontSize: 56 }}>💊</div>
-          <div style={{ fontSize: 28, fontWeight: 900, marginTop: 10, letterSpacing: 0.5 }}>PharmaSales</div>
+          <div style={{ fontSize: 28, fontWeight: 900, marginTop: 10, letterSpacing: 0.5 }}>DjamePharmaSales</div>
           <div style={{ fontSize: 14, opacity: 0.75, marginTop: 4 }}>Suivi des ventes en pharmacie</div>
         </div>
 
@@ -149,7 +149,7 @@ function LoginScreen({ onLogin }) {
             </div>
           </div>
         )}
-        <div style={{ textAlign: "center", color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 20 }}>PharmaSales © 2025</div>
+        <div style={{ textAlign: "center", color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 20 }}>DjamePharmaSales © 2025</div>
       </div>
     </div>
   );
@@ -187,7 +187,7 @@ function CommercialInterface({ user, sales, onSubmit, onLogout }) {
       <div style={{ background: "linear-gradient(135deg,#2b6cb0,#1a365d)", color: "white" }}>
         <div style={{ maxWidth: 720, margin: "0 auto", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 900 }}>💊 PharmaSales</div>
+            <div style={{ fontSize: 18, fontWeight: 900 }}>💊 DjamePharmaSales</div>
             <div style={{ fontSize: 13, opacity: 0.8, marginTop: 2 }}>Bonjour, <b>{user.nom}</b> 👋</div>
           </div>
           <button onClick={onLogout} style={{ padding: "7px 16px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.6)", background: "transparent", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Déconnexion</button>
@@ -377,7 +377,7 @@ function AdminInterface({ sales, onDelete, onLogout }) {
       <div style={{ background: "linear-gradient(135deg,#276749,#2f855a)", color: "white" }}>
         <div style={{ maxWidth: 1000, margin: "0 auto", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 900 }}>💊 PharmaSales — Administration</div>
+            <div style={{ fontSize: 18, fontWeight: 900 }}>💊 DjamePharmaSales — Administration</div>
             <div style={{ fontSize: 13, opacity: 0.8, marginTop: 2 }}>Vue d'ensemble de toutes les ventes</div>
           </div>
           <button onClick={onLogout} style={{ padding: "7px 16px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.6)", background: "transparent", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Déconnexion</button>
