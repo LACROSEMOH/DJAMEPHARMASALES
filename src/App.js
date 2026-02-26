@@ -5,13 +5,16 @@ import * as XLSX from "xlsx";
 // CONFIGURATION — Modifiez ici vos commerciales
 // ═══════════════════════════════════════════════
 const COMMERCIALES = [
-  { nom: "Sarah Kouassi",   pass: "sarah123" },
-  { nom: "Fatou Diallo",    pass: "fatou123" },
-  { nom: "Aminata Traoré",  pass: "aminata123" },
-  { nom: "Marie Konan",     pass: "marie123" },
-  { nom: "Adjoua Bamba",    pass: "adjoua123" },
+  { nom: "ANNE N'GORAN",       pass: "ANNEDJAME11" },
+  { nom: "TIE LOU CLAUDINE",   pass: "LOUDJAME12" },
+  { nom: "AICHA LACROSE",      pass: "AICHADJAME13" },
+  { nom: "ANNIMATRICE1",       pass: "ANIMDJAME14" },
+  { nom: "ANNIMATRICE2",       pass: "ANIMDJAME15" },
 ];
-const ADMIN = { login: "admin", pass: "admin2024" };
+const ADMIN = [
+{ login: "TOURE AWA DIA",         pass: "AWADJAME26" },
+  { login: "MOHAMED KONE YASSINE",  pass: "YASSINE26@" },
+  ];
 
 const PRODUITS_PRIX = {
   "L'Acrose Anti acne cream 45 ml": 7470,
@@ -125,7 +128,7 @@ function LoginScreen({ onLogin }) {
     else setError("Nom ou mot de passe incorrect.");
   };
   const handleAdmin = () => {
-    if (adminLogin === ADMIN.login && pass === ADMIN.pass) { setError(""); onLogin({ role: "admin" }); }
+    if (ADMIN.some(a => a.login === adminLogin && a.pass === pass)) { setError(""); onLogin({ role: "admin" }); }
     else setError("Identifiant ou mot de passe incorrect.");
   };
 
