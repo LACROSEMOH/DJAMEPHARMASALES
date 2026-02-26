@@ -5,20 +5,79 @@ import * as XLSX from "xlsx";
 // CONFIGURATION — Modifiez ici vos commerciales
 // ═══════════════════════════════════════════════
 const COMMERCIALES = [
-  { nom: "N'GORAN ANNE",   pass: "ANNE12GO3" },
-  { nom: "TIE LOU",    pass: "LOU12TI3" },
-  { nom: "AICHA LACROSE",  pass: "AICHA12LA3" },
-  { nom: "ANIMATRICE 1",     pass: "ANIM112LA3" },
-  { nom: "ANIMATRICE 2",    pass: "ANIM212LA3" },
+  { nom: "Sarah Kouassi",   pass: "sarah123" },
+  { nom: "Fatou Diallo",    pass: "fatou123" },
+  { nom: "Aminata Traoré",  pass: "aminata123" },
+  { nom: "Marie Konan",     pass: "marie123" },
+  { nom: "Adjoua Bamba",    pass: "adjoua123" },
 ];
-const ADMIN = { login: "YASSINE26", pass: "Yassine26@" };
+const ADMIN = { login: "admin", pass: "admin2024" };
 
-const PRODUITS = [
-  "Paracétamol 500mg", "Amoxicilline 1g", "Ibuprofène 400mg", "Vitamine C",
-  "Doliprane", "Augmentin", "Smecta", "Efferalgan", "Spasfon", "Autre",
-];
+const PRODUITS_PRIX = {
+  "L'Acrose Anti acne cream 45 ml": 7470,
+  "L'Acrose Face cleasing gel 250 ml": 6710,
+  "L'Acrose Magic White cream 45": 9400,
+  "L'Acrose savon extrait de riz": 3900,
+  "L'Acrose Tea tree oil shower gel 400": 6120,
+  "L'Acrose Vitamines C Sérum": 11000,
+  "L'Acrose White pearl soap": 3900,
+  "L'Acrose whitening body milk 500 ml": 10605,
+  "L'Acrose Whitening serum30 ml": 8585,
+  "L'Acrose creme LIFTANTE": 10500,
+  "L'Acrose brume corporelle": 6500,
+  "L'Acrose gel de douche au jasmin": 6120,
+  "L'Acrose gel de douche À L'huile De Pépins De Grenade": 6120,
+  "L'Acrose Hyaluronic serum": 9400,
+  "L'Acrose collagene serum": 9400,
+  "L'Acrose creme blanchissante (whitening cream)": 8585,
+  "Silver Care BDB Chlorhexidine 0,20%": 3000,
+  "SILVER CARE BROSSE ONE CARBON": 3900,
+  "SILVER CARE PATE SENSITIVE": 2200,
+  "SILVER CARE PATE WHITENING": 2200,
+  "Helan Agrume latte nutriente lait": 9980,
+  "Helan Agrume parfum": 12000,
+  "Helan Crème solaire": 9400,
+  "Helan Day DD cream": 10300,
+  "Helan Di talco lait hydratant": 9980,
+  "Helan Di talco Parfum": 12000,
+  "Helan Eau micellaire": 8800,
+  "Helan linea Bimba pan savon": 2700,
+  "Helan linea Bimbi Acqua luigia eau de toilette": 6300,
+  "Helan linea Bimbi Bagno fetal gel lavant 250 ml": 6500,
+  "Helan linea Bimbi gel lavant 500 ml": 8500,
+  "Helan linea Bimbi Natural cleansing lingette": 2900,
+  "Helan linea Bimbi Pâte protectrice": 5900,
+  "Helan linea Bimbi Silky liquid talk lait": 9980,
+  "Helan linea Bimbi Dolcezza lait démaquillant": 8200,
+  "Piave brosse Dentonet 6/24": 1500,
+  "Piave brosse White & Dunn": 0,
+  "Piave four fruits brosse JR 3+": 1900,
+  "Piave four fruits kit (Pâte & brosse)": 2800,
+  "Piave oxigen brosse hard": 1500,
+  "Piave oxigen brosse medium": 1500,
+  "Piave oxigen brosse soft": 1500,
+  "Silver Care bain de bouche 250 ml": 3000,
+  "Silver Care bain de bouche 500 ml": 3000,
+  "Silver Care BDB Chlorhexidine 0,12%": 3000,
+  "Silver Care brosse H2O Orthodontic": 2800,
+  "Silver Care Brosse happy 6/36 mois": 1900,
+  "Silver Care Brosse kid 2/6 ans": 1900,
+  "Silver Care brosse ONE Sensitive": 3900,
+  "Silver Care brosse ONE Whitening": 3900,
+  "Silver Care Brosse teen 7/12 ans": 1900,
+  "Silver Care brossette fin": 3300,
+  "Silver Care brossette extra fin": 3300,
+  "Silver Care brossettemedium": 3300,
+  "Silver Care brossette large": 3300,
+  "Silver Care Fil dentaire": 2000,
+  "Silver Care kit (Brosse & Pâte)": 2800,
+  "Silver Care Pâte kid": 1300,
+  "Silver Care Pâte PHARMA PLUS MEDIUM": 2500,
+  "Silver Care Pâte PHARMA PLUS SENSITIVE": 2500,
+};
+const PRODUITS = Object.keys(PRODUITS_PRIX);
 
-const STORAGE_KEY = "DjamePharmaSales_data";
+const STORAGE_KEY = "pharmasales_data";
 
 // ═══════════════════════════════════════════════
 // UTILITAIRES
@@ -171,7 +230,12 @@ function CommercialInterface({ user, sales, onSubmit, onLogout }) {
   const addLigne = () => setForm(f => ({ ...f, lignes: [...f.lignes, { produit: "", quantite: "", prixUnitaire: "" }] }));
   const removeLigne = (i) => setForm(f => ({ ...f, lignes: f.lignes.filter((_, idx) => idx !== i) }));
   const updateLigne = (i, field, val) => setForm(f => {
-    const lignes = [...f.lignes]; lignes[i] = { ...lignes[i], [field]: val }; return { ...f, lignes };
+    const lignes = [...f.lignes];
+    lignes[i] = { ...lignes[i], [field]: val };
+    if (field === "produit" && PRODUITS_PRIX[val] !== undefined) {
+      lignes[i].prixUnitaire = String(PRODUITS_PRIX[val]);
+    }
+    return { ...f, lignes };
   });
 
   const handleSubmit = () => {
@@ -253,7 +317,7 @@ function CommercialInterface({ user, sales, onSubmit, onLogout }) {
                         {PRODUITS.map(p => <option key={p}>{p}</option>)}
                       </select>
                       <input type="number" placeholder="0" min="0" value={l.quantite} onChange={e => updateLigne(i, "quantite", e.target.value)} style={{ ...iS, fontSize: 13 }} />
-                      <input type="number" placeholder="0" min="0" value={l.prixUnitaire} onChange={e => updateLigne(i, "prixUnitaire", e.target.value)} style={{ ...iS, fontSize: 13 }} />
+                      <input type="number" placeholder="0" min="0" value={l.prixUnitaire} readOnly style={{ ...iS, fontSize: 13, background: "#f0f4f8", color: "#2b6cb0", fontWeight: 700, cursor: "not-allowed" }} />
                       <div style={{ fontWeight: 700, fontSize: 13, color: "#276749", textAlign: "right" }}>
                         {l.quantite && l.prixUnitaire ? fmt((parseFloat(l.quantite) || 0) * (parseFloat(l.prixUnitaire) || 0)) + " F" : "—"}
                       </div>
