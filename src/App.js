@@ -5,13 +5,13 @@ import * as XLSX from "xlsx";
 // CONFIGURATION — Modifiez ici vos commerciales
 // ═══════════════════════════════════════════════
 const COMMERCIALES = [
-  { nom: "Sarah Kouassi",   pass: "sarah123" },
-  { nom: "Fatou Diallo",    pass: "fatou123" },
-  { nom: "Aminata Traoré",  pass: "aminata123" },
-  { nom: "Marie Konan",     pass: "marie123" },
-  { nom: "Adjoua Bamba",    pass: "adjoua123" },
+  { nom: "N'GORAN ANNE",   pass: "ANNE12GO3" },
+  { nom: "TIE LOU",    pass: "LOU12TI3" },
+  { nom: "AICHA LACROSE",  pass: "AICHA12LA3" },
+  { nom: "ANIMATRICE 1",     pass: "ANIM112LA3" },
+  { nom: "ANIMATRICE 2",    pass: "ANIM212LA3" },
 ];
-const ADMIN = { login: "admin", pass: "admin2024" };
+const ADMIN = { login: "YASSINE26", pass: "Yassine26@" };
 
 const PRODUITS = [
   "Paracétamol 500mg", "Amoxicilline 1g", "Ibuprofène 400mg", "Vitamine C",
