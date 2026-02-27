@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy } from "firebase/firestore";
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy, setDoc, updateDoc, getDoc } from "firebase/firestore";
 
 // ═══════════════════════════════════════════════
 // FIREBASE — Base de données en ligne
@@ -220,10 +220,11 @@ function LoginScreen({ onLogin }) {
 // ═══════════════════════════════════════════════
 // INTERFACE COMMERCIALE
 // ═══════════════════════════════════════════════
-function CommercialInterface({ user, sales, onSubmit, onLogout }) {
+function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
   const [form, setForm] = useState(emptyForm());
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [commTab, setCommTab] = useState("rapport");
 
   const mesVentes = sales.filter(s => s.commerciale === user.nom);
   const totalForm = form.lignes.reduce((s, l) => s + (parseFloat(l.quantite) || 0) * (parseFloat(l.prixUnitaire) || 0), 0);
@@ -264,7 +265,15 @@ function CommercialInterface({ user, sales, onSubmit, onLogout }) {
       </div>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: 20 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+        {/* Onglets commerciale */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
+          {[{ id: "rapport", label: "📋 Mon rapport" }, { id: "stock", label: "📦 Stock pharmacies" }].map(t => (
+            <button key={t.id} onClick={() => setCommTab(t.id)} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: commTab === t.id ? "#2b6cb0" : "white", color: commTab === t.id ? "white" : "#4a5568", fontWeight: 700, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>{t.label}</button>
+          ))}
+        </div>
+
+        {commTab === "stock" && <StockCommerciale pharmacies={pharmacies} />}
+        {commTab === "rapport" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
           <div style={{ background: "white", borderRadius: 12, padding: "16px 20px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", borderLeft: "4px solid #2b6cb0" }}>
             <div style={{ fontSize: 11, color: "#718096", fontWeight: 700, textTransform: "uppercase" }}>Mon CA aujourd'hui</div>
             <div style={{ fontSize: 22, fontWeight: 900, color: "#2b6cb0", marginTop: 8 }}>{fmt(caAujourdhui)} FCFA</div>
@@ -349,6 +358,7 @@ function CommercialInterface({ user, sales, onSubmit, onLogout }) {
             </div>
           </div>
         )}
+          </div>}
       </div>
     </div>
   );
@@ -357,7 +367,334 @@ function CommercialInterface({ user, sales, onSubmit, onLogout }) {
 // ═══════════════════════════════════════════════
 // INTERFACE ADMINISTRATEUR
 // ═══════════════════════════════════════════════
-function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading }) {
+
+// ═══════════════════════════════════════════════
+// INTERFACE STOCK PHARMACIES (Admin)
+// ═══════════════════════════════════════════════
+function StockInterface({ pharmacies, onAddPharmacie, onDeletePharmacie, onAddLivraison, onDeletePharmacieProduit }) {
+  const [view, setView] = useState("liste"); // liste | detail | ajouter
+  const [selected, setSelected] = useState(null);
+  const [search, setSearch] = useState("");
+  const [formPharm, setFormPharm] = useState({ nom: "", ville: "" });
+  const [formLiv, setFormLiv] = useState({ produit: "", quantite: "" });
+  const [saving, setSaving] = useState(false);
+
+  const filtered = pharmacies.filter(p =>
+    p.nom.toLowerCase().includes(search.toLowerCase()) ||
+    (p.ville || "").toLowerCase().includes(search.toLowerCase())
+  );
+
+  const selectedPharm = pharmacies.find(p => p.id === selected);
+
+  const handleAddPharm = async () => {
+    if (!formPharm.nom.trim()) return alert("Entrez le nom de la pharmacie.");
+    setSaving(true);
+    await onAddPharmacie({ nom: formPharm.nom.trim(), ville: formPharm.ville.trim(), produits: {} });
+    setFormPharm({ nom: "", ville: "" });
+    setSaving(false);
+    setView("liste");
+  };
+
+  const handleAddLivraison = async () => {
+    if (!formLiv.produit || !formLiv.quantite) return alert("Choisissez un produit et entrez la quantite.");
+    const qte = parseInt(formLiv.quantite);
+    if (isNaN(qte) || qte <= 0) return alert("Quantite invalide.");
+    setSaving(true);
+    await onAddLivraison(selected, formLiv.produit, qte);
+    setFormLiv({ produit: "", quantite: "" });
+    setSaving(false);
+  };
+
+  const getStockColor = (restant, initial) => {
+    if (restant <= 0) return "#e53e3e";
+    const pct = restant / initial;
+    if (pct <= 0.2) return "#e53e3e";
+    if (pct <= 0.4) return "#dd6b20";
+    return "#276749";
+  };
+
+  const getStockBg = (restant, initial) => {
+    if (restant <= 0) return "#fff5f5";
+    const pct = restant / initial;
+    if (pct <= 0.2) return "#fff5f5";
+    if (pct <= 0.4) return "#fffbeb";
+    return "#f0fff4";
+  };
+
+  return (
+    <div>
+      {view === "liste" && (
+        <>
+          <div style={{ display: "flex", gap: 12, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
+            <input
+              placeholder="🔍 Rechercher une pharmacie..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ ...iS, flex: 1, minWidth: 200 }}
+            />
+            <button onClick={() => setView("ajouter")} style={{ padding: "10px 20px", background: "#2b6cb0", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 800, fontSize: 13, whiteSpace: "nowrap" }}>
+              + Ajouter une pharmacie
+            </button>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 50, background: "white", borderRadius: 14, color: "#a0aec0" }}>
+              <div style={{ fontSize: 44 }}>🏥</div>
+              <div style={{ marginTop: 12 }}>Aucune pharmacie enregistrée</div>
+              <div style={{ fontSize: 13, marginTop: 6 }}>Cliquez sur "Ajouter une pharmacie" pour commencer</div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
+              {filtered.map(p => {
+                const produits = Object.entries(p.produits || {});
+                const totalProduits = produits.length;
+                const alertes = produits.filter(([, v]) => v.restant <= 0 || (v.initial > 0 && v.restant / v.initial <= 0.2)).length;
+                return (
+                  <div key={p.id} style={{ background: "white", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", overflow: "hidden", border: alertes > 0 ? "2px solid #fed7d7" : "2px solid transparent" }}>
+                    <div style={{ padding: "14px 18px", background: alertes > 0 ? "#fff5f5" : "#f7fafc", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 15, color: "#1a365d" }}>🏥 {p.nom}</div>
+                        {p.ville && <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>📍 {p.ville}</div>}
+                      </div>
+                      {alertes > 0 && (
+                        <span style={{ background: "#e53e3e", color: "white", fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 20 }}>
+                          ⚠️ {alertes} alerte{alertes > 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ padding: "12px 18px" }}>
+                      <div style={{ fontSize: 12, color: "#718096", marginBottom: 8 }}>{totalProduits} produit{totalProduits > 1 ? "s" : ""} en stock</div>
+                      {produits.slice(0, 3).map(([nom, v]) => (
+                        <div key={nom} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5, fontSize: 12 }}>
+                          <span style={{ color: "#4a5568", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "60%" }}>{nom}</span>
+                          <span style={{ fontWeight: 800, color: getStockColor(v.restant, v.initial), background: getStockBg(v.restant, v.initial), padding: "2px 8px", borderRadius: 6 }}>
+                            {v.restant <= 0 ? "RUPTURE" : v.restant + " restant" + (v.restant > 1 ? "s" : "")}
+                          </span>
+                        </div>
+                      ))}
+                      {totalProduits > 3 && <div style={{ fontSize: 11, color: "#a0aec0", marginTop: 4 }}>+{totalProduits - 3} autre{totalProduits - 3 > 1 ? "s" : ""} produit{totalProduits - 3 > 1 ? "s" : ""}...</div>}
+                      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                        <button onClick={() => { setSelected(p.id); setView("detail"); }} style={{ flex: 1, padding: "8px", background: "#ebf4ff", color: "#2b6cb0", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>
+                          👁️ Voir le stock
+                        </button>
+                        <button onClick={() => onDeletePharmacie(p.id, p.nom)} style={{ padding: "8px 12px", background: "#fff5f5", color: "#e53e3e", border: "1px solid #fed7d7", borderRadius: 8, cursor: "pointer", fontSize: 12 }}>
+                          🗑
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {view === "ajouter" && (
+        <div style={{ background: "white", borderRadius: 14, padding: 28, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", maxWidth: 500 }}>
+          <button onClick={() => setView("liste")} style={{ background: "none", border: "none", color: "#718096", cursor: "pointer", fontSize: 13, marginBottom: 18 }}>← Retour</button>
+          <div style={{ fontWeight: 800, fontSize: 17, color: "#1a365d", marginBottom: 22 }}>🏥 Ajouter une pharmacie</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <label style={lS}>Nom de la pharmacie *</label>
+              <input placeholder="ex: Pharmacie du Plateau" value={formPharm.nom} onChange={e => setFormPharm({ ...formPharm, nom: e.target.value })} style={iS} />
+            </div>
+            <div>
+              <label style={lS}>Ville / Quartier</label>
+              <input placeholder="ex: Cocody, Plateau..." value={formPharm.ville} onChange={e => setFormPharm({ ...formPharm, ville: e.target.value })} style={iS} />
+            </div>
+            <button onClick={handleAddPharm} disabled={saving} style={{ padding: "13px", background: saving ? "#a0aec0" : "#2b6cb0", color: "white", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: saving ? "not-allowed" : "pointer" }}>
+              {saving ? "Enregistrement..." : "✅ Enregistrer la pharmacie"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {view === "detail" && selectedPharm && (
+        <div>
+          <button onClick={() => { setView("liste"); setSelected(null); }} style={{ background: "none", border: "none", color: "#718096", cursor: "pointer", fontSize: 13, marginBottom: 18, display: "flex", alignItems: "center", gap: 6 }}>← Retour à la liste</button>
+
+          <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 18 }}>
+            <div style={{ fontWeight: 900, fontSize: 20, color: "#1a365d" }}>🏥 {selectedPharm.nom}</div>
+            {selectedPharm.ville && <div style={{ fontSize: 13, color: "#718096", marginTop: 4 }}>📍 {selectedPharm.ville}</div>}
+          </div>
+
+          {/* Ajouter une livraison */}
+          <div style={{ background: "#ebf4ff", borderRadius: 14, padding: 20, marginBottom: 18, border: "1px solid #bee3f8" }}>
+            <div style={{ fontWeight: 800, color: "#1a365d", marginBottom: 14, fontSize: 14 }}>📦 Enregistrer une livraison</div>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 10, alignItems: "flex-end" }}>
+              <div>
+                <label style={lS}>Produit livré</label>
+                <select value={formLiv.produit} onChange={e => setFormLiv({ ...formLiv, produit: e.target.value })} style={iS}>
+                  <option value="">-- Choisir un produit --</option>
+                  {PRODUITS.map(p => <option key={p}>{p}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lS}>Quantité livrée</label>
+                <input type="number" min="1" placeholder="0" value={formLiv.quantite} onChange={e => setFormLiv({ ...formLiv, quantite: e.target.value })} style={iS} />
+              </div>
+              <button onClick={handleAddLivraison} disabled={saving} style={{ padding: "10px 16px", background: "#2b6cb0", color: "white", border: "none", borderRadius: 8, cursor: saving ? "not-allowed" : "pointer", fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", height: 42 }}>
+                {saving ? "..." : "+ Ajouter"}
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: "#4a5568", marginTop: 8 }}>Si le produit existe déjà, la quantité sera ajoutée au stock actuel.</div>
+          </div>
+
+          {/* Tableau stock */}
+          <div style={{ background: "white", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#1a365d", fontSize: 15 }}>
+              📊 Stock actuel — {Object.keys(selectedPharm.produits || {}).length} produit{Object.keys(selectedPharm.produits || {}).length > 1 ? "s" : ""}
+            </div>
+            {Object.keys(selectedPharm.produits || {}).length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40, color: "#a0aec0" }}>
+                <div style={{ fontSize: 36 }}>📦</div>
+                <div style={{ marginTop: 10 }}>Aucune livraison enregistrée</div>
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead><tr style={{ background: "#f7fafc" }}>
+                    {["Produit", "Qté livrée", "Qté vendue", "Stock restant", "Statut", ""].map(h => (
+                      <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#4a5568", fontWeight: 700, borderBottom: "2px solid #e2e8f0", fontSize: 12 }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {Object.entries(selectedPharm.produits || {}).sort((a, b) => a[0].localeCompare(b[0])).map(([nom, v], idx) => {
+                      const pct = v.initial > 0 ? (v.restant / v.initial) * 100 : 0;
+                      const color = getStockColor(v.restant, v.initial);
+                      const bg = getStockBg(v.restant, v.initial);
+                      const statut = v.restant <= 0 ? "RUPTURE" : pct <= 20 ? "CRITIQUE" : pct <= 40 ? "FAIBLE" : "OK";
+                      const statutColor = v.restant <= 0 ? "#e53e3e" : pct <= 20 ? "#e53e3e" : pct <= 40 ? "#dd6b20" : "#276749";
+                      return (
+                        <tr key={nom} style={{ background: idx % 2 === 0 ? "white" : "#f7fafc" }}>
+                          <td style={{ ...tdS, fontWeight: 600, maxWidth: 200 }}>{nom}</td>
+                          <td style={{ ...tdS, textAlign: "center", color: "#2b6cb0", fontWeight: 700 }}>{v.initial}</td>
+                          <td style={{ ...tdS, textAlign: "center", color: "#6b46c1", fontWeight: 700 }}>{v.initial - v.restant}</td>
+                          <td style={{ ...tdS, fontWeight: 900, color: color, fontSize: 15 }}>{v.restant}</td>
+                          <td style={tdS}>
+                            <div>
+                              <span style={{ background: bg, color: statutColor, fontWeight: 800, padding: "3px 10px", borderRadius: 20, fontSize: 11 }}>{statut}</span>
+                              <div style={{ height: 5, background: "#e2e8f0", borderRadius: 10, marginTop: 6, width: 80 }}>
+                                <div style={{ height: "100%", width: Math.max(0, pct) + "%", background: color, borderRadius: 10 }} />
+                              </div>
+                            </div>
+                          </td>
+                          <td style={tdS}>
+                            <button onClick={() => onDeletePharmacieProduit(selected, nom)} style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 6, padding: "4px 8px", cursor: "pointer", color: "#e53e3e", fontSize: 11 }}>🗑</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// VUE STOCK POUR LA COMMERCIALE (lecture seule)
+// ═══════════════════════════════════════════════
+function StockCommerciale({ pharmacies }) {
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(null);
+
+  const filtered = pharmacies.filter(p =>
+    p.nom.toLowerCase().includes(search.toLowerCase()) ||
+    (p.ville || "").toLowerCase().includes(search.toLowerCase())
+  );
+
+  const selectedPharm = pharmacies.find(p => p.id === selected);
+
+  const getStockColor = (restant, initial) => {
+    if (restant <= 0) return "#e53e3e";
+    const pct = restant / initial;
+    if (pct <= 0.2) return "#e53e3e";
+    if (pct <= 0.4) return "#dd6b20";
+    return "#276749";
+  };
+
+  if (selected && selectedPharm) return (
+    <div>
+      <button onClick={() => setSelected(null)} style={{ background: "none", border: "none", color: "#718096", cursor: "pointer", fontSize: 13, marginBottom: 16 }}>← Retour</button>
+      <div style={{ background: "white", borderRadius: 14, padding: 20, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 14 }}>
+        <div style={{ fontWeight: 900, fontSize: 18, color: "#1a365d" }}>🏥 {selectedPharm.nom}</div>
+        {selectedPharm.ville && <div style={{ fontSize: 12, color: "#718096", marginTop: 3 }}>📍 {selectedPharm.ville}</div>}
+        <div style={{ fontSize: 12, color: "#2b6cb0", marginTop: 6, fontWeight: 600 }}>👁️ Vue lecture seule — vous ne pouvez pas modifier le stock</div>
+      </div>
+      <div style={{ background: "white", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+        {Object.keys(selectedPharm.produits || {}).length === 0 ? (
+          <div style={{ textAlign: "center", padding: 40, color: "#a0aec0" }}>Aucun produit enregistré pour cette pharmacie</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead><tr style={{ background: "#f7fafc" }}>
+                {["Produit", "Stock restant", "Statut"].map(h => (
+                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#4a5568", fontWeight: 700, borderBottom: "2px solid #e2e8f0", fontSize: 12 }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {Object.entries(selectedPharm.produits || {}).sort((a, b) => a[0].localeCompare(b[0])).map(([nom, v], idx) => {
+                  const pct = v.initial > 0 ? (v.restant / v.initial) * 100 : 0;
+                  const color = getStockColor(v.restant, v.initial);
+                  const statut = v.restant <= 0 ? "RUPTURE" : pct <= 20 ? "CRITIQUE" : pct <= 40 ? "FAIBLE" : "OK";
+                  return (
+                    <tr key={nom} style={{ background: idx % 2 === 0 ? "white" : "#f7fafc" }}>
+                      <td style={{ ...tdS, fontWeight: 600 }}>{nom}</td>
+                      <td style={{ ...tdS, fontWeight: 900, color, fontSize: 15 }}>{v.restant <= 0 ? "0" : v.restant}</td>
+                      <td style={tdS}>
+                        <span style={{ background: v.restant <= 0 ? "#fff5f5" : pct <= 20 ? "#fff5f5" : pct <= 40 ? "#fffbeb" : "#f0fff4", color, fontWeight: 800, padding: "3px 10px", borderRadius: 20, fontSize: 11 }}>{statut}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ background: "#ebf4ff", borderRadius: 10, padding: "10px 16px", marginBottom: 14, fontSize: 13, color: "#2b6cb0", fontWeight: 600 }}>
+        👁️ Consultation du stock en lecture seule — vous ne pouvez pas modifier
+      </div>
+      <input placeholder="🔍 Rechercher une pharmacie..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...iS, marginBottom: 14 }} />
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 40, background: "white", borderRadius: 14, color: "#a0aec0" }}>Aucune pharmacie trouvée</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {filtered.map(p => {
+            const produits = Object.entries(p.produits || {});
+            const alertes = produits.filter(([, v]) => v.restant <= 0 || (v.initial > 0 && v.restant / v.initial <= 0.2)).length;
+            return (
+              <div key={p.id} onClick={() => setSelected(p.id)} style={{ background: "white", borderRadius: 12, padding: "14px 18px", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", cursor: "pointer", border: alertes > 0 ? "2px solid #fed7d7" : "2px solid transparent", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 700, color: "#1a365d" }}>🏥 {p.nom}</div>
+                  {p.ville && <div style={{ fontSize: 12, color: "#718096" }}>📍 {p.ville}</div>}
+                  <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>{produits.length} produit{produits.length > 1 ? "s" : ""}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  {alertes > 0 && <div style={{ background: "#e53e3e", color: "white", fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 20, marginBottom: 4 }}>⚠️ {alertes} alerte{alertes > 1 ? "s" : ""}</div>}
+                  <div style={{ fontSize: 12, color: "#718096" }}>Voir →</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, pharmacies, onAddPharmacie, onDeletePharmacie, onAddLivraison, onDeletePharmacieProduit }) {
   const [filterComm, setFilterComm] = useState("Toutes");
   const [filterDate, setFilterDate] = useState("");
   const [activeTab, setActiveTab] = useState("apercu"); // apercu | semaine | mois | produits | stats
@@ -458,11 +795,12 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading }
   };
 
   const TABS = [
-    { id: "apercu",   label: "📊 Aperçu" },
-    { id: "semaine",  label: "📅 Cette semaine" },
-    { id: "mois",     label: "🗓 Ce mois" },
-    { id: "produits", label: "🏆 Top produits" },
-    { id: "stats",    label: "📈 Statistiques" },
+    { id: "apercu",     label: "📊 Aperçu" },
+    { id: "semaine",    label: "📅 Cette semaine" },
+    { id: "mois",       label: "🗓 Ce mois" },
+    { id: "produits",   label: "🏆 Top produits" },
+    { id: "stats",      label: "📈 Statistiques" },
+    { id: "stocks",     label: "📦 Stocks pharmacies" },
   ];
 
   const RankingCard = ({ ranking, dataset, title }) => (
@@ -707,6 +1045,17 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading }
               </>
             )}
 
+            {/* ── ONGLET STOCKS ── */}
+            {activeTab === "stocks" && (
+              <StockInterface
+                pharmacies={pharmacies}
+                onAddPharmacie={onAddPharmacie}
+                onDeletePharmacie={onDeletePharmacie}
+                onAddLivraison={onAddLivraison}
+                onDeletePharmacieProduit={onDeletePharmacieProduit}
+              />
+            )}
+
             {/* ── ONGLET STATISTIQUES ── */}
             {activeTab === "stats" && (
               <>
@@ -791,20 +1140,46 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading }
 export default function App() {
   const [user, setUser] = useState(null);
   const [sales, setSales] = useState([]);
+  const [pharmacies, setPharmacies] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Écoute ventes en temps réel
   useEffect(() => {
     const q = query(collection(db, "ventes"), orderBy("timestamp", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setSales(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    const unsub = onSnapshot(q, (snap) => {
+      setSales(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setLoading(false);
     }, () => setLoading(false));
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
+  // Écoute pharmacies/stocks en temps réel
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "pharmacies"), (snap) => {
+      setPharmacies(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  // Soumettre une vente + décrémenter le stock
   const handleNewSale = async (entry) => {
     try {
       await addDoc(collection(db, "ventes"), { ...entry, timestamp: new Date().toISOString() });
+      // Trouver la pharmacie dans la base de stock
+      const pharmDoc = pharmacies.find(p => p.nom.toLowerCase().trim() === entry.pharmacie.toLowerCase().trim());
+      if (pharmDoc) {
+        const produits = { ...pharmDoc.produits };
+        entry.lignes.forEach(l => {
+          if (produits[l.produit] !== undefined) {
+            const qteVendue = parseInt(l.quantite) || 0;
+            produits[l.produit] = {
+              ...produits[l.produit],
+              restant: Math.max(0, produits[l.produit].restant - qteVendue)
+            };
+          }
+        });
+        await updateDoc(doc(db, "pharmacies", pharmDoc.id), { produits });
+      }
     } catch(e) {
       alert("Erreur d'envoi. Vérifiez votre connexion internet.");
     }
@@ -817,17 +1192,57 @@ export default function App() {
 
   const handleResetAll = async () => {
     if (!window.confirm("ATTENTION ! Vous allez supprimer TOUS les rapports. Cette action est irreversible. Etes-vous sur ?")) return;
-    if (!window.confirm("Dernière confirmation : effacer TOUTES les données et repartir à zéro ?")) return;
+    if (!window.confirm("Derniere confirmation : effacer TOUTES les données et repartir a zero ?")) return;
     try {
       await Promise.all(sales.map(s => deleteDoc(doc(db, "ventes", s.id))));
-      alert("✅ Toutes les données ont été effacées. L application repart à zéro !");
+      alert("Toutes les données ont été effacées. L application repart a zero !");
     } catch(e) {
       alert("Erreur lors de la réinitialisation.");
     }
   };
 
+  // Ajouter une pharmacie
+  const handleAddPharmacie = async (data) => {
+    try {
+      await addDoc(collection(db, "pharmacies"), { ...data, createdAt: new Date().toISOString() });
+    } catch(e) { alert("Erreur lors de l ajout."); }
+  };
+
+  // Supprimer une pharmacie
+  const handleDeletePharmacie = async (id, nom) => {
+    if (!window.confirm("Supprimer la pharmacie " + nom + " et tout son stock ?")) return;
+    try { await deleteDoc(doc(db, "pharmacies", id)); } catch(e) { alert("Erreur de suppression."); }
+  };
+
+  // Ajouter/mettre à jour une livraison
+  const handleAddLivraison = async (pharmId, produit, qte) => {
+    try {
+      const pharm = pharmacies.find(p => p.id === pharmId);
+      if (!pharm) return;
+      const produits = { ...pharm.produits };
+      if (produits[produit]) {
+        produits[produit] = { initial: produits[produit].initial + qte, restant: produits[produit].restant + qte };
+      } else {
+        produits[produit] = { initial: qte, restant: qte };
+      }
+      await updateDoc(doc(db, "pharmacies", pharmId), { produits });
+    } catch(e) { alert("Erreur lors de la livraison."); }
+  };
+
+  // Supprimer un produit du stock d'une pharmacie
+  const handleDeletePharmacieProduit = async (pharmId, produit) => {
+    if (!window.confirm("Supprimer " + produit + " du stock ?")) return;
+    try {
+      const pharm = pharmacies.find(p => p.id === pharmId);
+      if (!pharm) return;
+      const produits = { ...pharm.produits };
+      delete produits[produit];
+      await updateDoc(doc(db, "pharmacies", pharmId), { produits });
+    } catch(e) { alert("Erreur de suppression."); }
+  };
+
   if (!user) return <LoginScreen onLogin={setUser} />;
   if (user.role === "commerciale")
-    return <CommercialInterface user={user} sales={sales} onSubmit={handleNewSale} onLogout={() => setUser(null)} />;
-  return <AdminInterface sales={sales} onDelete={handleDelete} onResetAll={handleResetAll} onLogout={() => setUser(null)} user={user} loading={loading} />;
+    return <CommercialInterface user={user} sales={sales} pharmacies={pharmacies} onSubmit={handleNewSale} onLogout={() => setUser(null)} />;
+  return <AdminInterface sales={sales} onDelete={handleDelete} onResetAll={handleResetAll} onLogout={() => setUser(null)} user={user} loading={loading} pharmacies={pharmacies} onAddPharmacie={handleAddPharmacie} onDeletePharmacie={handleDeletePharmacie} onAddLivraison={handleAddLivraison} onDeletePharmacieProduit={handleDeletePharmacieProduit} />;
 }
