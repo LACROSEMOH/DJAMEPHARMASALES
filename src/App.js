@@ -99,6 +99,7 @@ const PRODUITS_PRIX = {
   "Silver Care BROSSE ONE MEDIUM": 3900,
   "Silver Care BROSSE KID BRUSH": 1500,
   "Silver Care Pâte FOUR FRUIT 3 ANS": 1300,
+  "Silver Care Pâte PROTECTION CONTINUE": 2200,
 };
 const PRODUITS = Object.keys(PRODUITS_PRIX);
 
