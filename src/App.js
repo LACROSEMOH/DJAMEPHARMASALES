@@ -96,6 +96,9 @@ const PRODUITS_PRIX = {
   "Silver Care Pâte kid": 1300,
   "Silver Care Pâte PHARMA PLUS MEDIUM": 2500,
   "Silver Care Pâte PHARMA PLUS SENSITIVE": 2500,
+  "Silver Care BROSSE ONE MEDIUM": 3900,
+  "Silver Care BROSSE KID BRUSH": 1500,
+  "Silver Care Pâte FOUR FRUIT 3 ANS": 1300,
 };
 const PRODUITS = Object.keys(PRODUITS_PRIX);
 
