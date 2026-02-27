@@ -357,23 +357,80 @@ function CommercialInterface({ user, sales, onSubmit, onLogout }) {
 // ═══════════════════════════════════════════════
 // INTERFACE ADMINISTRATEUR
 // ═══════════════════════════════════════════════
-function AdminInterface({ sales, onDelete, onLogout, user, loading }) {
+function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading }) {
   const [filterComm, setFilterComm] = useState("Toutes");
   const [filterDate, setFilterDate] = useState("");
+  const [activeTab, setActiveTab] = useState("apercu"); // apercu | semaine | mois | produits | stats
 
+  // ── Périodes ──────────────────────────────────
+  const now = new Date();
+  const todayStr = now.toISOString().split("T")[0];
+
+  const getWeekRange = () => {
+    const d = new Date(now);
+    const day = d.getDay() || 7;
+    d.setDate(d.getDate() - day + 1);
+    const start = d.toISOString().split("T")[0];
+    d.setDate(d.getDate() + 6);
+    const end = d.toISOString().split("T")[0];
+    return { start, end };
+  };
+  const { start: weekStart, end: weekEnd } = getWeekRange();
+  const monthStr = now.toISOString().slice(0, 7);
+
+  const salesThisWeek  = sales.filter(s => s.date >= weekStart && s.date <= weekEnd);
+  const salesThisMonth = sales.filter(s => s.date && s.date.startsWith(monthStr));
+
+  // ── Données filtrées onglet Aperçu ────────────
   const filtered = sales.filter(s =>
     (filterComm === "Toutes" || s.commerciale === filterComm) &&
     (!filterDate || s.date === filterDate)
   );
   const totalCA = filtered.reduce((s, e) => s + e.total, 0);
-  const ranking = COMMERCIALES.map(c => {
-    const v = sales.filter(s => s.commerciale === c.nom);
+
+  // ── Classement commerciales ───────────────────
+  const buildRanking = (dataset) => COMMERCIALES.map(c => {
+    const v = dataset.filter(s => s.commerciale === c.nom);
     return { nom: c.nom, total: v.reduce((s, e) => s + e.total, 0), visites: v.length };
   }).sort((a, b) => b.total - a.total);
 
+  const rankingAll   = buildRanking(sales);
+  const rankingWeek  = buildRanking(salesThisWeek);
+  const rankingMonth = buildRanking(salesThisMonth);
+
+  // ── Top produits ─────────────────────────────
+  const buildTopProduits = (dataset) => {
+    const map = {};
+    dataset.forEach(e => e.lignes && e.lignes.forEach(l => {
+      if (!l.produit) return;
+      if (!map[l.produit]) map[l.produit] = { qte: 0, ca: 0 };
+      map[l.produit].qte += parseFloat(l.quantite) || 0;
+      map[l.produit].ca  += (parseFloat(l.quantite) || 0) * (parseFloat(l.prixUnitaire) || 0);
+    }));
+    return Object.entries(map).map(([nom, v]) => ({ nom, ...v })).sort((a, b) => b.ca - a.ca);
+  };
+
+  const topProduitsAll   = buildTopProduits(sales);
+  const topProduitsWeek  = buildTopProduits(salesThisWeek);
+  const topProduitsMonth = buildTopProduits(salesThisMonth);
+
+  // ── Stats par mois ────────────────────────────
+  const statsByMonth = () => {
+    const map = {};
+    sales.forEach(s => {
+      const m = s.date ? s.date.slice(0, 7) : null;
+      if (!m) return;
+      if (!map[m]) map[m] = { ca: 0, visites: 0 };
+      map[m].ca += s.total;
+      map[m].visites++;
+    });
+    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0])).map(([mois, v]) => ({ mois, ...v }));
+  };
+  const monthlyStats = statsByMonth();
+
   const exportExcel = () => {
     const rows = [];
-    filtered.forEach(e => e.lignes.forEach(l => rows.push({
+    filtered.forEach(e => e.lignes && e.lignes.forEach(l => rows.push({
       "Date": e.date, "Commerciale": e.commerciale,
       "Pharmacie": e.pharmacie, "Ville": e.ville || "",
       "Produit": l.produit,
@@ -384,127 +441,346 @@ function AdminInterface({ sales, onDelete, onLogout, user, loading }) {
     })));
     const ws1 = XLSX.utils.json_to_sheet(rows);
     ws1["!cols"] = [{ wch: 12 }, { wch: 22 }, { wch: 28 }, { wch: 18 }, { wch: 36 }, { wch: 10 }, { wch: 18 }, { wch: 16 }, { wch: 30 }];
-    const summaryRows = ranking.map(r => ({
+    const summaryRows = rankingAll.map(r => ({
       "Commerciale": r.nom, "Nb visites": r.visites,
       "CA Total (FCFA)": r.total,
       "Moyenne / visite": r.visites ? Math.round(r.total / r.visites) : 0,
     }));
     summaryRows.push({ "Commerciale": "TOTAL GÉNÉRAL", "Nb visites": sales.length, "CA Total (FCFA)": sales.reduce((s, e) => s + e.total, 0), "Moyenne / visite": sales.length ? Math.round(sales.reduce((s, e) => s + e.total, 0) / sales.length) : 0 });
     const ws2 = XLSX.utils.json_to_sheet(summaryRows);
+    const topRows = topProduitsAll.map((p, i) => ({ "Rang": i + 1, "Produit": p.nom, "Quantité totale": p.qte, "CA (FCFA)": p.ca }));
+    const ws3 = XLSX.utils.json_to_sheet(topRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws1, "Détail ventes");
-    XLSX.utils.book_append_sheet(wb, ws2, "Résumé");
-    XLSX.writeFile(wb, `DjamePharmaSales-${today()}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws2, "Résumé commerciales");
+    XLSX.utils.book_append_sheet(wb, ws3, "Top produits");
+    XLSX.writeFile(wb, "DjamePharmaSales-" + todayStr + ".xlsx");
   };
+
+  const TABS = [
+    { id: "apercu",   label: "📊 Aperçu" },
+    { id: "semaine",  label: "📅 Cette semaine" },
+    { id: "mois",     label: "🗓️ Ce mois" },
+    { id: "produits", label: "🏆 Top produits" },
+    { id: "stats",    label: "📈 Statistiques" },
+  ];
+
+  const RankingCard = ({ ranking, dataset, title }) => (
+    <div style={{ background: "white", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", overflow: "hidden", marginBottom: 18 }}>
+      <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#1a365d", fontSize: 15 }}>
+        🏆 {title}
+        <span style={{ float: "right", fontSize: 12, fontWeight: 600, color: "#718096" }}>
+          CA total : {fmt(dataset.reduce((s, e) => s + e.total, 0))} FCFA
+        </span>
+      </div>
+      <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+        {ranking.map((r, i) => {
+          const pct = ranking[0].total > 0 ? (r.total / ranking[0].total) * 100 : 0;
+          const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : (i + 1) + ".";
+          return (
+            <div key={r.nom}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 14 }}>
+                <span>{medal} <b>{r.nom}</b></span>
+                <span style={{ fontWeight: 700, color: "#276749" }}>
+                  {fmt(r.total)} FCFA
+                  <span style={{ color: "#a0aec0", fontWeight: 400, fontSize: 12 }}> ({r.visites} visite{r.visites > 1 ? "s" : ""})</span>
+                </span>
+              </div>
+              <div style={{ height: 10, background: "#e2e8f0", borderRadius: 10 }}>
+                <div style={{ height: "100%", width: pct + "%", background: i === 0 ? "linear-gradient(90deg,#f6ad55,#ed8936)" : "linear-gradient(90deg,#2b6cb0,#63b3ed)", borderRadius: 10, transition: "width 0.6s" }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const TopProduitsCard = ({ topProduits, title }) => (
+    <div style={{ background: "white", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", overflow: "hidden", marginBottom: 18 }}>
+      <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#1a365d", fontSize: 15 }}>🛒 {title}</div>
+      {topProduits.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 30, color: "#a0aec0" }}>Aucune vente sur cette période</div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ background: "#f7fafc" }}>
+              {["Rang", "Produit", "Qté vendue", "CA (FCFA)", "% du CA"].map(h => (
+                <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#4a5568", fontWeight: 700, borderBottom: "2px solid #e2e8f0", fontSize: 12 }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {topProduits.slice(0, 15).map((p, i) => {
+                const totalCAProduits = topProduits.reduce((s, x) => s + x.ca, 0);
+                const pct = totalCAProduits > 0 ? ((p.ca / totalCAProduits) * 100).toFixed(1) : 0;
+                return (
+                  <tr key={p.nom} style={{ background: i % 2 === 0 ? "white" : "#f7fafc" }}>
+                    <td style={{ ...tdS, fontWeight: 800, color: i === 0 ? "#d69e2e" : i === 1 ? "#718096" : i === 2 ? "#b7791f" : "#4a5568" }}>
+                      {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
+                    </td>
+                    <td style={{ ...tdS, fontWeight: 600, maxWidth: 200 }}>{p.nom}</td>
+                    <td style={{ ...tdS, textAlign: "center", fontWeight: 700, color: "#2b6cb0" }}>{p.qte}</td>
+                    <td style={{ ...tdS, fontWeight: 800, color: "#276749", whiteSpace: "nowrap" }}>{fmt(p.ca)} F</td>
+                    <td style={tdS}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div style={{ flex: 1, height: 6, background: "#e2e8f0", borderRadius: 10 }}>
+                          <div style={{ height: "100%", width: pct + "%", background: "#276749", borderRadius: 10 }} />
+                        </div>
+                        <span style={{ fontSize: 11, color: "#718096", minWidth: 35 }}>{pct}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div style={{ fontFamily: "'Segoe UI',system-ui,sans-serif", minHeight: "100vh", background: "#edf2f7" }}>
       <div style={{ background: "linear-gradient(135deg,#276749,#2f855a)", color: "white" }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ maxWidth: 1050, margin: "0 auto", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 900 }}>💊 DjamePharmaSales — Administration</div>
             <div style={{ fontSize: 13, opacity: 0.8, marginTop: 2 }}>Connecté : <b>{user.nom}</b></div>
           </div>
           <button onClick={onLogout} style={{ padding: "7px 16px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.6)", background: "transparent", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Déconnexion</button>
         </div>
+
+        {/* Onglets */}
+        <div style={{ maxWidth: 1050, margin: "0 auto", padding: "0 20px", display: "flex", gap: 4, overflowX: "auto" }}>
+          {TABS.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+              padding: "10px 16px", border: "none", background: activeTab === tab.id ? "white" : "transparent",
+              color: activeTab === tab.id ? "#276749" : "rgba(255,255,255,0.85)",
+              fontWeight: 700, fontSize: 13, cursor: "pointer", borderRadius: "8px 8px 0 0",
+              whiteSpace: "nowrap", transition: "all 0.2s"
+            }}>{tab.label}</button>
+          ))}
+        </div>
       </div>
 
-      <div style={{ maxWidth: 1000, margin: "0 auto", padding: 20 }}>
+      <div style={{ maxWidth: 1050, margin: "0 auto", padding: 20 }}>
         {loading ? (
-          <div style={{ textAlign: "center", padding: 60, color: "#2b6cb0", fontSize: 16, background: "white", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+          <div style={{ textAlign: "center", padding: 60, color: "#2b6cb0", fontSize: 16, background: "white", borderRadius: 14 }}>
             ⏳ Chargement des données en temps réel...
           </div>
         ) : (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 18 }}>
-              {[
-                { label: "Chiffre d'affaires", value: fmt(totalCA) + " FCFA", icon: "💰", color: "#2b6cb0" },
-                { label: "Pharmacies visitées", value: new Set(filtered.map(s => s.pharmacie)).size, icon: "🏥", color: "#276749" },
-                { label: "Rapports reçus", value: filtered.length, icon: "📋", color: "#6b46c1" },
-              ].map(k => (
-                <div key={k.label} style={{ background: "white", borderRadius: 14, padding: "18px 20px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", borderLeft: `5px solid ${k.color}` }}>
-                  <div style={{ fontSize: 26 }}>{k.icon}</div>
-                  <div style={{ fontSize: 20, fontWeight: 900, color: k.color, marginTop: 10 }}>{k.value}</div>
-                  <div style={{ fontSize: 12, color: "#718096", marginTop: 4 }}>{k.label}</div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ background: "white", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", overflow: "hidden", marginBottom: 18 }}>
-              <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#1a365d", fontSize: 15 }}>🏆 Classement des commerciales</div>
-              <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-                {ranking.map((r, i) => {
-                  const pct = ranking[0].total > 0 ? (r.total / ranking[0].total) * 100 : 0;
-                  return (
-                    <div key={r.nom}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 14 }}>
-                        <span>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`} <b>{r.nom}</b></span>
-                        <span style={{ fontWeight: 700, color: "#276749" }}>{fmt(r.total)} FCFA <span style={{ color: "#a0aec0", fontWeight: 400, fontSize: 12 }}>({r.visites} visite{r.visites > 1 ? "s" : ""})</span></span>
-                      </div>
-                      <div style={{ height: 8, background: "#e2e8f0", borderRadius: 10 }}>
-                        <div style={{ height: "100%", width: pct + "%", background: "linear-gradient(90deg,#2b6cb0,#63b3ed)", borderRadius: 10 }} />
-                      </div>
+            {/* ── ONGLET APERÇU ── */}
+            {activeTab === "apercu" && (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 18 }}>
+                  {[
+                    { label: "CA total général", value: fmt(sales.reduce((s,e)=>s+e.total,0)) + " FCFA", icon: "💰", color: "#2b6cb0" },
+                    { label: "Pharmacies visitées", value: new Set(sales.map(s => s.pharmacie)).size, icon: "🏥", color: "#276749" },
+                    { label: "Rapports reçus", value: sales.length, icon: "📋", color: "#6b46c1" },
+                  ].map(k => (
+                    <div key={k.label} style={{ background: "white", borderRadius: 14, padding: "18px 20px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", borderLeft: "5px solid " + k.color }}>
+                      <div style={{ fontSize: 26 }}>{k.icon}</div>
+                      <div style={{ fontSize: 20, fontWeight: 900, color: k.color, marginTop: 10 }}>{k.value}</div>
+                      <div style={{ fontSize: 12, color: "#718096", marginTop: 4 }}>{k.label}</div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div style={{ background: "white", borderRadius: 14, padding: "18px 20px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 18 }}>
-              <div style={{ flex: 1, minWidth: 155 }}>
-                <label style={lS}>Filtrer par commerciale</label>
-                <select value={filterComm} onChange={e => setFilterComm(e.target.value)} style={iS}>
-                  <option>Toutes</option>
-                  {COMMERCIALES.map(c => <option key={c.nom}>{c.nom}</option>)}
-                </select>
-              </div>
-              <div style={{ flex: 1, minWidth: 155 }}>
-                <label style={lS}>Filtrer par date</label>
-                <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={iS} />
-              </div>
-              <button onClick={() => { setFilterComm("Toutes"); setFilterDate(""); }} style={{ padding: "9px 14px", background: "#edf2f7", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, color: "#4a5568", fontSize: 13 }}>✕ Réinitialiser</button>
-              <button onClick={exportExcel} style={{ padding: "9px 20px", background: "#276749", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 800, fontSize: 13 }}>📥 Exporter Excel (.xlsx)</button>
-            </div>
-
-            <div style={{ background: "white", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", overflow: "hidden" }}>
-              <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#1a365d", fontSize: 15, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>📊 Tous les rapports</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#718096" }}>{filtered.length} rapport{filtered.length > 1 ? "s" : ""}</span>
-              </div>
-              {filtered.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 50, color: "#a0aec0" }}>
-                  <div style={{ fontSize: 44 }}>📭</div>
-                  <div style={{ marginTop: 12 }}>Aucune vente pour cette sélection</div>
+                  ))}
                 </div>
-              ) : (
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                    <thead><tr style={{ background: "#f7fafc" }}>
-                      {["Date", "Commerciale", "Pharmacie", "Produits vendus", "Montant total", "Remarques", ""].map(h => (
-                        <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#4a5568", fontWeight: 700, borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap", fontSize: 12 }}>{h}</th>
-                      ))}
-                    </tr></thead>
-                    <tbody>
-                      {filtered.map((s, idx) => (
-                        <tr key={s.id} style={{ background: idx % 2 === 0 ? "white" : "#f7fafc" }}>
-                          <td style={tdS}><b>{s.date}</b></td>
-                          <td style={tdS}><span style={{ background: "#ebf4ff", color: "#2b6cb0", fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontSize: 12 }}>{s.commerciale}</span></td>
-                          <td style={tdS}><div style={{ fontWeight: 600 }}>{s.pharmacie}</div>{s.ville && <div style={{ fontSize: 11, color: "#a0aec0" }}>{s.ville}</div>}</td>
-                          <td style={tdS}>{s.lignes.map((l, i) => (
-                            <div key={i} style={{ fontSize: 12, color: "#4a5568", lineHeight: 1.8 }}>
-                              <b>{l.produit}</b> × {l.quantite} — <span style={{ color: "#276749", fontWeight: 600 }}>{fmt((parseFloat(l.quantite) || 0) * (parseFloat(l.prixUnitaire) || 0))} F</span>
+
+                <RankingCard ranking={rankingAll} dataset={sales} title="Classement général toutes périodes" />
+
+                {/* Filtres + export + reset */}
+                <div style={{ background: "white", borderRadius: 14, padding: "18px 20px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 18 }}>
+                  <div style={{ flex: 1, minWidth: 155 }}>
+                    <label style={lS}>Filtrer par commerciale</label>
+                    <select value={filterComm} onChange={e => setFilterComm(e.target.value)} style={iS}>
+                      <option>Toutes</option>
+                      {COMMERCIALES.map(c => <option key={c.nom}>{c.nom}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 155 }}>
+                    <label style={lS}>Filtrer par date</label>
+                    <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} style={iS} />
+                  </div>
+                  <button onClick={() => { setFilterComm("Toutes"); setFilterDate(""); }} style={{ padding: "9px 14px", background: "#edf2f7", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 600, color: "#4a5568", fontSize: 13 }}>✕ Réinitialiser</button>
+                  <button onClick={exportExcel} style={{ padding: "9px 18px", background: "#276749", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 800, fontSize: 13 }}>📥 Exporter Excel</button>
+                  <button onClick={onResetAll} style={{ padding: "9px 18px", background: "#e53e3e", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 800, fontSize: 13 }}>🗑️ Effacer tout</button>
+                </div>
+
+                {/* Tableau */}
+                <div style={{ background: "white", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+                  <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#1a365d", fontSize: 15, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>📊 Tous les rapports</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#718096" }}>{filtered.length} rapport{filtered.length > 1 ? "s" : ""}</span>
+                  </div>
+                  {filtered.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: 50, color: "#a0aec0" }}><div style={{ fontSize: 44 }}>📭</div><div style={{ marginTop: 12 }}>Aucune vente</div></div>
+                  ) : (
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                        <thead><tr style={{ background: "#f7fafc" }}>
+                          {["Date", "Commerciale", "Pharmacie", "Produits vendus", "Montant total", "Remarques", ""].map(h => (
+                            <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#4a5568", fontWeight: 700, borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap", fontSize: 12 }}>{h}</th>
+                          ))}
+                        </tr></thead>
+                        <tbody>
+                          {filtered.map((s, idx) => (
+                            <tr key={s.id} style={{ background: idx % 2 === 0 ? "white" : "#f7fafc" }}>
+                              <td style={tdS}><b>{s.date}</b></td>
+                              <td style={tdS}><span style={{ background: "#ebf4ff", color: "#2b6cb0", fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontSize: 12 }}>{s.commerciale}</span></td>
+                              <td style={tdS}><div style={{ fontWeight: 600 }}>{s.pharmacie}</div>{s.ville && <div style={{ fontSize: 11, color: "#a0aec0" }}>{s.ville}</div>}</td>
+                              <td style={tdS}>{s.lignes && s.lignes.map((l, i) => (
+                                <div key={i} style={{ fontSize: 12, color: "#4a5568", lineHeight: 1.8 }}><b>{l.produit}</b> × {l.quantite} — <span style={{ color: "#276749", fontWeight: 600 }}>{fmt((parseFloat(l.quantite)||0)*(parseFloat(l.prixUnitaire)||0))} F</span></div>
+                              ))}</td>
+                              <td style={{ ...tdS, fontWeight: 800, color: "#276749", whiteSpace: "nowrap" }}>{fmt(s.total)} FCFA</td>
+                              <td style={{ ...tdS, maxWidth: 140, color: "#718096", fontSize: 12 }}>{s.notes || "—"}</td>
+                              <td style={tdS}><button onClick={() => onDelete(s.id)} style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 6, padding: "4px 8px", cursor: "pointer", color: "#e53e3e", fontSize: 12 }}>🗑</button></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* ── ONGLET SEMAINE ── */}
+            {activeTab === "semaine" && (
+              <>
+                <div style={{ background: "#ebf4ff", borderRadius: 12, padding: "12px 20px", marginBottom: 18, fontSize: 14, color: "#2b6cb0", fontWeight: 600 }}>
+                  📅 Semaine du <b>{weekStart}</b> au <b>{weekEnd}</b> — {salesThisWeek.length} rapport{salesThisWeek.length > 1 ? "s" : ""}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 18 }}>
+                  {[
+                    { label: "CA cette semaine", value: fmt(salesThisWeek.reduce((s,e)=>s+e.total,0)) + " FCFA", icon: "💰", color: "#2b6cb0" },
+                    { label: "Pharmacies visitées", value: new Set(salesThisWeek.map(s=>s.pharmacie)).size, icon: "🏥", color: "#276749" },
+                    { label: "Rapports reçus", value: salesThisWeek.length, icon: "📋", color: "#6b46c1" },
+                  ].map(k => (
+                    <div key={k.label} style={{ background: "white", borderRadius: 14, padding: "16px 20px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", borderLeft: "5px solid " + k.color }}>
+                      <div style={{ fontSize: 24 }}>{k.icon}</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: k.color, marginTop: 8 }}>{k.value}</div>
+                      <div style={{ fontSize: 12, color: "#718096", marginTop: 4 }}>{k.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <RankingCard ranking={rankingWeek} dataset={salesThisWeek} title="Classement cette semaine" />
+                <TopProduitsCard topProduits={topProduitsWeek} title="Top produits cette semaine" />
+              </>
+            )}
+
+            {/* ── ONGLET MOIS ── */}
+            {activeTab === "mois" && (
+              <>
+                <div style={{ background: "#f0fff4", borderRadius: 12, padding: "12px 20px", marginBottom: 18, fontSize: 14, color: "#276749", fontWeight: 600 }}>
+                  🗓️ Mois de <b>{new Date(monthStr + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</b> — {salesThisMonth.length} rapport{salesThisMonth.length > 1 ? "s" : ""}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 18 }}>
+                  {[
+                    { label: "CA ce mois", value: fmt(salesThisMonth.reduce((s,e)=>s+e.total,0)) + " FCFA", icon: "💰", color: "#276749" },
+                    { label: "Pharmacies visitées", value: new Set(salesThisMonth.map(s=>s.pharmacie)).size, icon: "🏥", color: "#2b6cb0" },
+                    { label: "Rapports reçus", value: salesThisMonth.length, icon: "📋", color: "#6b46c1" },
+                  ].map(k => (
+                    <div key={k.label} style={{ background: "white", borderRadius: 14, padding: "16px 20px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", borderLeft: "5px solid " + k.color }}>
+                      <div style={{ fontSize: 24 }}>{k.icon}</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: k.color, marginTop: 8 }}>{k.value}</div>
+                      <div style={{ fontSize: 12, color: "#718096", marginTop: 4 }}>{k.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <RankingCard ranking={rankingMonth} dataset={salesThisMonth} title="Classement ce mois" />
+                <TopProduitsCard topProduits={topProduitsMonth} title="Top produits ce mois" />
+              </>
+            )}
+
+            {/* ── ONGLET TOP PRODUITS ── */}
+            {activeTab === "produits" && (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 18 }}>
+                  <div style={{ background: "white", borderRadius: 14, padding: "16px 20px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", borderLeft: "5px solid #d69e2e", gridColumn: "span 3" }}>
+                    <div style={{ fontSize: 14, color: "#718096", fontWeight: 700 }}>🥇 Produit N°1 toutes périodes</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: "#d69e2e", marginTop: 6 }}>{topProduitsAll[0]?.nom || "—"}</div>
+                    <div style={{ fontSize: 13, color: "#276749", fontWeight: 600, marginTop: 4 }}>{fmt(topProduitsAll[0]?.ca || 0)} FCFA — {topProduitsAll[0]?.qte || 0} unités vendues</div>
+                  </div>
+                </div>
+                <TopProduitsCard topProduits={topProduitsAll} title="Classement complet de tous les produits" />
+              </>
+            )}
+
+            {/* ── ONGLET STATISTIQUES ── */}
+            {activeTab === "stats" && (
+              <>
+                <div style={{ background: "white", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", overflow: "hidden", marginBottom: 18 }}>
+                  <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#1a365d", fontSize: 15 }}>📈 Évolution du CA par mois</div>
+                  {monthlyStats.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: 40, color: "#a0aec0" }}>Aucune donnée disponible</div>
+                  ) : (
+                    <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 12 }}>
+                      {monthlyStats.map((m, i) => {
+                        const maxCA = Math.max(...monthlyStats.map(x => x.ca));
+                        const pct = maxCA > 0 ? (m.ca / maxCA) * 100 : 0;
+                        const moisLabel = new Date(m.mois + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+                        return (
+                          <div key={m.mois}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 13 }}>
+                              <span style={{ fontWeight: 600, textTransform: "capitalize" }}>{moisLabel}</span>
+                              <span style={{ fontWeight: 700, color: "#276749" }}>{fmt(m.ca)} FCFA <span style={{ color: "#a0aec0", fontWeight: 400 }}>({m.visites} rapport{m.visites > 1 ? "s" : ""})</span></span>
                             </div>
-                          ))}</td>
-                          <td style={{ ...tdS, fontWeight: 800, color: "#276749", whiteSpace: "nowrap" }}>{fmt(s.total)} FCFA</td>
-                          <td style={{ ...tdS, maxWidth: 140, color: "#718096", fontSize: 12 }}>{s.notes || "—"}</td>
-                          <td style={tdS}><button onClick={() => onDelete(s.id)} style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 6, padding: "4px 8px", cursor: "pointer", color: "#e53e3e", fontSize: 12 }}>🗑</button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            <div style={{ height: 12, background: "#e2e8f0", borderRadius: 10 }}>
+                              <div style={{ height: "100%", width: pct + "%", background: i === 0 ? "linear-gradient(90deg,#276749,#48bb78)" : "linear-gradient(90deg,#2b6cb0,#63b3ed)", borderRadius: 10, transition: "width 0.6s" }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
+                  <div style={{ background: "white", borderRadius: 14, padding: "20px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+                    <div style={{ fontWeight: 800, color: "#1a365d", marginBottom: 14, fontSize: 15 }}>🏆 Meilleure commerciale</div>
+                    {rankingAll[0] && (
+                      <>
+                        <div style={{ fontSize: 32 }}>🥇</div>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: "#d69e2e", marginTop: 8 }}>{rankingAll[0].nom}</div>
+                        <div style={{ fontSize: 14, color: "#276749", fontWeight: 700, marginTop: 4 }}>{fmt(rankingAll[0].total)} FCFA</div>
+                        <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>{rankingAll[0].visites} visites — moy. {fmt(rankingAll[0].visites ? rankingAll[0].total / rankingAll[0].visites : 0)} F/visite</div>
+                      </>
+                    )}
+                  </div>
+                  <div style={{ background: "white", borderRadius: 14, padding: "20px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+                    <div style={{ fontWeight: 800, color: "#1a365d", marginBottom: 14, fontSize: 15 }}>🛒 Produit N°1</div>
+                    {topProduitsAll[0] && (
+                      <>
+                        <div style={{ fontSize: 32 }}>⭐</div>
+                        <div style={{ fontSize: 15, fontWeight: 900, color: "#d69e2e", marginTop: 8, lineHeight: 1.4 }}>{topProduitsAll[0].nom}</div>
+                        <div style={{ fontSize: 14, color: "#276749", fontWeight: 700, marginTop: 4 }}>{fmt(topProduitsAll[0].ca)} FCFA</div>
+                        <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>{topProduitsAll[0].qte} unités vendues</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ background: "white", borderRadius: 14, padding: "20px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+                  <div style={{ fontWeight: 800, color: "#1a365d", marginBottom: 14, fontSize: 15 }}>📊 Récapitulatif global</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 12 }}>
+                    {[
+                      { label: "CA total toutes périodes", value: fmt(sales.reduce((s,e)=>s+e.total,0)) + " FCFA" },
+                      { label: "Nombre total de rapports", value: sales.length },
+                      { label: "Pharmacies différentes visitées", value: new Set(sales.map(s=>s.pharmacie)).size },
+                      { label: "Moyenne CA par rapport", value: sales.length ? fmt(sales.reduce((s,e)=>s+e.total,0)/sales.length) + " FCFA" : "—" },
+                      { label: "Produits différents vendus", value: topProduitsAll.length },
+                      { label: "Meilleur mois", value: monthlyStats[0] ? new Date(monthlyStats[0].mois+"-01").toLocaleDateString("fr-FR",{month:"long",year:"numeric"}) : "—" },
+                    ].map(s => (
+                      <div key={s.label} style={{ background: "#f7fafc", borderRadius: 10, padding: "12px 16px" }}>
+                        <div style={{ fontSize: 11, color: "#718096", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>{s.label}</div>
+                        <div style={{ fontSize: 16, fontWeight: 900, color: "#1a365d", marginTop: 6 }}>{s.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
@@ -512,9 +788,6 @@ function AdminInterface({ sales, onDelete, onLogout, user, loading }) {
   );
 }
 
-// ═══════════════════════════════════════════════
-// APP PRINCIPALE
-// ═══════════════════════════════════════════════
 export default function App() {
   const [user, setUser] = useState(null);
   const [sales, setSales] = useState([]);
@@ -542,8 +815,23 @@ export default function App() {
     try { await deleteDoc(doc(db, "ventes", id)); } catch { alert("Erreur de suppression."); }
   };
 
+  const handleResetAll = async () => {
+    if (!window.confirm("⚠️ ATTENTION !
+
+Vous allez supprimer TOUS les rapports de vente.
+
+Cette action est irréversible. Êtes-vous sûr ?")) return;
+    if (!window.confirm("Dernière confirmation : effacer TOUTES les données et repartir à zéro ?")) return;
+    try {
+      await Promise.all(sales.map(s => deleteDoc(doc(db, "ventes", s.id))));
+      alert("✅ Toutes les données ont été effacées. L application repart à zéro !");
+    } catch {
+      alert("Erreur lors de la réinitialisation.");
+    }
+  };
+
   if (!user) return <LoginScreen onLogin={setUser} />;
   if (user.role === "commerciale")
     return <CommercialInterface user={user} sales={sales} onSubmit={handleNewSale} onLogout={() => setUser(null)} />;
-  return <AdminInterface sales={sales} onDelete={handleDelete} onLogout={() => setUser(null)} user={user} loading={loading} />;
+  return <AdminInterface sales={sales} onDelete={handleDelete} onResetAll={handleResetAll} onLogout={() => setUser(null)} user={user} loading={loading} />;
 }
