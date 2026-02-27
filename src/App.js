@@ -460,7 +460,7 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading }
   const TABS = [
     { id: "apercu",   label: "📊 Aperçu" },
     { id: "semaine",  label: "📅 Cette semaine" },
-    { id: "mois",     label: "🗓️ Ce mois" },
+    { id: "mois",     label: "🗓 Ce mois" },
     { id: "produits", label: "🏆 Top produits" },
     { id: "stats",    label: "📈 Statistiques" },
   ];
@@ -673,7 +673,7 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading }
             {activeTab === "mois" && (
               <>
                 <div style={{ background: "#f0fff4", borderRadius: 12, padding: "12px 20px", marginBottom: 18, fontSize: 14, color: "#276749", fontWeight: 600 }}>
-                  🗓️ Mois de <b>{new Date(monthStr + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</b> — {salesThisMonth.length} rapport{salesThisMonth.length > 1 ? "s" : ""}
+                  Mois de <b>{new Date(monthStr + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</b> — {salesThisMonth.length} rapport{salesThisMonth.length > 1 ? "s" : ""}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 18 }}>
                   {[
@@ -805,27 +805,23 @@ export default function App() {
   const handleNewSale = async (entry) => {
     try {
       await addDoc(collection(db, "ventes"), { ...entry, timestamp: new Date().toISOString() });
-    } catch {
+    } catch(e) {
       alert("Erreur d'envoi. Vérifiez votre connexion internet.");
     }
   };
 
   const handleDelete = async (id) => {
     if (!window.confirm("Supprimer ce rapport ?")) return;
-    try { await deleteDoc(doc(db, "ventes", id)); } catch { alert("Erreur de suppression."); }
+    try { await deleteDoc(doc(db, "ventes", id)); } catch(e) { alert("Erreur de suppression."); }
   };
 
   const handleResetAll = async () => {
-    if (!window.confirm("⚠️ ATTENTION !
-
-Vous allez supprimer TOUS les rapports de vente.
-
-Cette action est irréversible. Êtes-vous sûr ?")) return;
+    if (!window.confirm("ATTENTION ! Vous allez supprimer TOUS les rapports. Cette action est irreversible. Etes-vous sur ?")) return;
     if (!window.confirm("Dernière confirmation : effacer TOUTES les données et repartir à zéro ?")) return;
     try {
       await Promise.all(sales.map(s => deleteDoc(doc(db, "ventes", s.id))));
       alert("✅ Toutes les données ont été effacées. L application repart à zéro !");
-    } catch {
+    } catch(e) {
       alert("Erreur lors de la réinitialisation.");
     }
   };
