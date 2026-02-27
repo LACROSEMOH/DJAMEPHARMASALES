@@ -380,7 +380,7 @@ function StockInterface({ pharmacies, onAddPharmacie, onDeletePharmacie, onAddLi
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState("");
   const [formPharm, setFormPharm] = useState({ nom: "", ville: "" });
-  const [formLiv, setFormLiv] = useState({ produit: "", quantite: "" });
+  const [formLiv, setFormLiv] = useState({ produit: "", quantite: "", dateLivraison: today() });
   const [saving, setSaving] = useState(false);
 
   const filtered = pharmacies.filter(p =>
@@ -405,7 +405,7 @@ function StockInterface({ pharmacies, onAddPharmacie, onDeletePharmacie, onAddLi
     if (isNaN(qte) || qte <= 0) return alert("Quantite invalide.");
     setSaving(true);
     await onAddLivraison(selected, formLiv.produit, qte);
-    setFormLiv({ produit: "", quantite: "" });
+    setFormLiv({ produit: "", quantite: "", dateLivraison: today() });
     setSaving(false);
   };
 
@@ -559,7 +559,7 @@ function StockInterface({ pharmacies, onAddPharmacie, onDeletePharmacie, onAddLi
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead><tr style={{ background: "#f7fafc" }}>
-                    {["Produit", "Qté livrée", "Qté vendue", "Stock restant", "Statut", ""].map(h => (
+                    {["Produit", "Dernière livraison", "Qté livrée", "Qté vendue", "Stock restant", "Statut", ""].map(h => (
                       <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#4a5568", fontWeight: 700, borderBottom: "2px solid #e2e8f0", fontSize: 12 }}>{h}</th>
                     ))}
                   </tr></thead>
@@ -572,7 +572,14 @@ function StockInterface({ pharmacies, onAddPharmacie, onDeletePharmacie, onAddLi
                       const statutColor = v.restant <= 0 ? "#e53e3e" : pct <= 20 ? "#e53e3e" : pct <= 40 ? "#dd6b20" : "#276749";
                       return (
                         <tr key={nom} style={{ background: idx % 2 === 0 ? "white" : "#f7fafc" }}>
-                          <td style={{ ...tdS, fontWeight: 600, maxWidth: 200 }}>{nom}</td>
+                          <td style={{ ...tdS, fontWeight: 600, maxWidth: 180 }}>{nom}</td>
+                          <td style={{ ...tdS, fontSize: 12 }}>
+                            {v.dernierelivraison ? (
+                              <span style={{ background: "#ebf4ff", color: "#2b6cb0", padding: "3px 8px", borderRadius: 6, fontWeight: 600, fontSize: 11 }}>
+                                📅 {v.dernierelivraison}
+                              </span>
+                            ) : <span style={{ color: "#a0aec0", fontSize: 11 }}>—</span>}
+                          </td>
                           <td style={{ ...tdS, textAlign: "center", color: "#2b6cb0", fontWeight: 700 }}>{v.initial}</td>
                           <td style={{ ...tdS, textAlign: "center", color: "#6b46c1", fontWeight: 700 }}>{v.initial - v.restant}</td>
                           <td style={{ ...tdS, fontWeight: 900, color: color, fontSize: 15 }}>{v.restant}</td>
@@ -1219,17 +1226,23 @@ export default function App() {
   };
 
   // Ajouter/mettre à jour une livraison
-  const handleAddLivraison = async (pharmId, produit, qte) => {
+  const handleAddLivraison = async (pharmId, produit, qte, dateLivraison) => {
     try {
       const pharm = pharmacies.find(p => p.id === pharmId);
       if (!pharm) return;
       const produits = { ...pharm.produits };
+      const historique = pharm.historiqueLivraisons ? [...pharm.historiqueLivraisons] : [];
+      historique.unshift({ produit, quantite: qte, date: dateLivraison || today(), timestamp: new Date().toISOString() });
       if (produits[produit]) {
-        produits[produit] = { initial: produits[produit].initial + qte, restant: produits[produit].restant + qte };
+        produits[produit] = {
+          initial: produits[produit].initial + qte,
+          restant: produits[produit].restant + qte,
+          dernierelivraison: dateLivraison || today()
+        };
       } else {
-        produits[produit] = { initial: qte, restant: qte };
+        produits[produit] = { initial: qte, restant: qte, dernierelivraison: dateLivraison || today() };
       }
-      await updateDoc(doc(db, "pharmacies", pharmId), { produits });
+      await updateDoc(doc(db, "pharmacies", pharmId), { produits, historiqueLivraisons: historique.slice(0, 50) });
     } catch(e) { alert("Erreur lors de la livraison."); }
   };
 
