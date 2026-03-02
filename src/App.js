@@ -60,9 +60,9 @@ const ZONES_CI = [
 // ═══════════════════════════════════════════════
 const PRODUITS_PRIX = {
   "L'Acrose Anti acne cream 45 ml": 7470,
-  "L'Acrose Face cleasing gel 250 ml": 6710,
+  "L'Acrose Face cleasing gel 250 ml": 7500,
   "L'Acrose Magic White cream 45": 9400,
-  "L'Acrose savon extrait de riz": 3900,
+  "L'Acrose savon extrait de riz": 4100,
   "L'Acrose Tea tree oil shower gel 400": 6120,
   "L'Acrose Vitamines C Sérum": 11000,
   "L'Acrose White pearl soap": 3900,
