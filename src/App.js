@@ -36,8 +36,8 @@ const ADMINS = [
 // DÉLÉGUÉS MÉDICAUX — À personnaliser
 // ═══════════════════════════════════════════════
 const DELEGUES = [
-  { nom: "DOUCOURE ASSITA", pass: "DOUDJAME11" },
-  { nom: "OUATTARA YASMINE", pass: "OUATDJAME12" },
+  { nom: "DELEGUE 1", pass: "DELEG01" },
+  { nom: "DELEGUE 2", pass: "DELEG02" },
   { nom: "DELEGUE 3", pass: "DELEG03" },
   { nom: "DELEGUE 4", pass: "DELEG04" },
 ];
@@ -60,9 +60,9 @@ const ZONES_CI = [
 // ═══════════════════════════════════════════════
 const PRODUITS_PRIX = {
   "L'Acrose Anti acne cream 45 ml": 7470,
-  "L'Acrose Face cleasing gel 250 ml": 7500,
+  "L'Acrose Face cleasing gel 250 ml": 6710,
   "L'Acrose Magic White cream 45": 9400,
-  "L'Acrose savon extrait de riz": 4100,
+  "L'Acrose savon extrait de riz": 3900,
   "L'Acrose Tea tree oil shower gel 400": 6120,
   "L'Acrose Vitamines C Sérum": 11000,
   "L'Acrose White pearl soap": 3900,
@@ -121,6 +121,14 @@ const PRODUITS_PRIX = {
   "Silver Care Pâte PHARMA PLUS SENSITIVE": 2500,
 };
 const PRODUITS = Object.keys(PRODUITS_PRIX);
+
+// Produits groupes par gamme pour les delegues
+const GAMMES = {
+  "L'Acrose": Object.keys(PRODUITS_PRIX).filter(p => p.toLowerCase().startsWith("l'acrose")),
+  "Silver Care": Object.keys(PRODUITS_PRIX).filter(p => p.toLowerCase().startsWith("silver care")),
+  "Helan": Object.keys(PRODUITS_PRIX).filter(p => p.toLowerCase().startsWith("helan")),
+  "Piave": Object.keys(PRODUITS_PRIX).filter(p => p.toLowerCase().startsWith("piave")),
+};
 
 // ═══════════════════════════════════════════════
 // UTILITAIRES
@@ -450,7 +458,7 @@ function DelegueInterface({ user, tournees, rapportsVisite, onSubmitVisite, onLo
   const [selectedPharmacie, setSelectedPharmacie] = useState(null);
   const [showRapportModal, setShowRapportModal] = useState(false);
   const [rapportForm, setRapportForm] = useState({
-    pharmacienPresent: "oui", nomPharmacien: "", produitsPresentes: [], interet: "neutre", notes: "",
+    pharmacienPresent: "oui", nomPharmacien: "", responsablePresent: "oui", nomResponsable: "", produitsPresentes: [], interet: "neutre", notes: "",
   });
   const [searchZone, setSearchZone] = useState("");
   const [saving, setSaving] = useState(false);
@@ -467,7 +475,7 @@ function DelegueInterface({ user, tournees, rapportsVisite, onSubmitVisite, onLo
 
   const handleOpenRapport = (ph) => {
     setSelectedPharmacie(ph);
-    setRapportForm({ pharmacienPresent: "oui", nomPharmacien: "", produitsPresentes: [], interet: "neutre", notes: "" });
+    setRapportForm({ pharmacienPresent: "oui", nomPharmacien: "", responsablePresent: "oui", nomResponsable: "", produitsPresentes: [], interet: "neutre", notes: "" });
     setShowRapportModal(true);
   };
 
@@ -692,13 +700,52 @@ function DelegueInterface({ user, tournees, rapportsVisite, onSubmitVisite, onLo
                 </div>
               )}
               <div>
-                <label style={{ ...lS, marginBottom: 8 }}>Produits presentes *</label>
-                <div style={{ maxHeight: 200, overflowY: "auto", background: "#f7fafc", borderRadius: 10, padding: 12, border: "1px solid #e2e8f0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                  {PRODUITS.map(p => (
-                    <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11, padding: "4px 6px", borderRadius: 6, background: rapportForm.produitsPresentes.includes(p) ? "#fffff0" : "transparent", border: rapportForm.produitsPresentes.includes(p) ? "1px solid #d69e2e" : "1px solid transparent" }}>
-                      <input type="checkbox" checked={rapportForm.produitsPresentes.includes(p)} onChange={() => toggleProduit(p)} />
-                      <span>{p}</span>
-                    </label>
+                <label style={lS}>Le responsable etait-il present ?</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {["oui", "non"].map(v => (
+                    <button key={v} onClick={() => setRapportForm(f => ({ ...f, responsablePresent: v }))}
+                      style={{ flex: 1, padding: "10px", border: "2px solid", borderColor: rapportForm.responsablePresent === v ? "#744210" : "#e2e8f0", borderRadius: 8, background: rapportForm.responsablePresent === v ? "#fffff0" : "white", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+                      {v === "oui" ? "Oui" : "Non"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {rapportForm.responsablePresent === "oui" && (
+                <div>
+                  <label style={lS}>Nom du responsable (optionnel)</label>
+                  <input placeholder="Nom..." value={rapportForm.nomResponsable || ""} onChange={e => setRapportForm(f => ({ ...f, nomResponsable: e.target.value }))} style={iS} />
+                </div>
+              )}
+
+              <div>
+                <label style={{ ...lS, marginBottom: 8 }}>Produits presentes par gamme *</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {Object.entries(GAMMES).map(([gamme, produits]) => produits.length === 0 ? null : (
+                    <div key={gamme} style={{ background: "#f7fafc", borderRadius: 10, border: "1px solid #e2e8f0", overflow: "hidden" }}>
+                      <div style={{ padding: "8px 12px", background: "#fffff0", borderBottom: "1px solid #f6e05e", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontWeight: 800, fontSize: 13, color: "#744210" }}>{gamme}</span>
+                        <button onClick={() => {
+                          const allSelected = produits.every(p => rapportForm.produitsPresentes.includes(p));
+                          setRapportForm(f => ({
+                            ...f,
+                            produitsPresentes: allSelected
+                              ? f.produitsPresentes.filter(p => !produits.includes(p))
+                              : [...new Set([...f.produitsPresentes, ...produits])]
+                          }));
+                        }} style={{ fontSize: 11, padding: "3px 8px", background: "white", border: "1px solid #d69e2e", borderRadius: 6, cursor: "pointer", color: "#744210", fontWeight: 600 }}>
+                          {produits.every(p => rapportForm.produitsPresentes.includes(p)) ? "Tout deselect." : "Tout selec."}
+                        </button>
+                      </div>
+                      <div style={{ padding: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+                        {produits.map(p => (
+                          <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11, padding: "4px 6px", borderRadius: 6, background: rapportForm.produitsPresentes.includes(p) ? "#fffff0" : "transparent", border: rapportForm.produitsPresentes.includes(p) ? "1px solid #d69e2e" : "1px solid transparent" }}>
+                            <input type="checkbox" checked={rapportForm.produitsPresentes.includes(p)} onChange={() => toggleProduit(p)} style={{ accentColor: "#d69e2e" }} />
+                            <span style={{ color: "#4a5568" }}>{p}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -917,15 +964,44 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
               Cliquez sur une pharmacie sur la carte, copiez son nom et collez-le dans le formulaire a gauche.
             </div>
             {searchZoneAdmin ? (
-              <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid #e2e8f0" }}>
-                <iframe
-                  title="carte-admin"
-                  width="100%" height="450"
-                  style={{ border: 0, display: "block" }}
-                  loading="lazy"
-                  src={"https://www.google.com/maps/embed/v1/search?key=" + GOOGLE_MAPS_KEY + "&q=pharmacie+" + encodeURIComponent(searchZoneAdmin) + "+Cote+Ivoire&language=fr"}
-                />
-              </div>
+              <>
+                <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid #e2e8f0", marginBottom: 14 }}>
+                  <iframe
+                    title="carte-admin"
+                    width="100%" height="380"
+                    style={{ border: 0, display: "block" }}
+                    loading="lazy"
+                    src={"https://www.google.com/maps/embed/v1/search?key=" + GOOGLE_MAPS_KEY + "&q=pharmacie+" + encodeURIComponent(searchZoneAdmin) + "+Cote+Ivoire&language=fr"}
+                  />
+                </div>
+                <div style={{ background: "#fffff0", borderRadius: 10, padding: 14, border: "1px solid #f6e05e" }}>
+                  <div style={{ fontWeight: 800, color: "#744210", fontSize: 13, marginBottom: 10 }}>
+                    Pharmacies enregistrees dans cette zone — cliquez pour pre-remplir
+                  </div>
+                  {pharmacies.filter(p => (p.ville || "").toLowerCase().includes(searchZoneAdmin.toLowerCase().split(" - ").pop().toLowerCase())).length === 0 ? (
+                    <div style={{ fontSize: 12, color: "#a0aec0", fontStyle: "italic" }}>
+                      Aucune pharmacie enregistree pour cette zone dans votre base de stock.
+                      Tapez le nom manuellement apres avoir repere la pharmacie sur la carte.
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {pharmacies.filter(p => (p.ville || "").toLowerCase().includes(searchZoneAdmin.toLowerCase().split(" - ").pop().toLowerCase())).map(p => (
+                        <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "white", borderRadius: 8, padding: "8px 12px", border: "1px solid #e2e8f0" }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: "#1a365d" }}>{p.nom}</div>
+                            <div style={{ fontSize: 11, color: "#718096" }}>{p.ville}</div>
+                          </div>
+                          <button
+                            onClick={() => setFormTournee(f => ({ ...f, pharmacie: p.nom, ville: p.ville || searchZoneAdmin, adresse: "" }))}
+                            style={{ padding: "6px 12px", background: "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12, whiteSpace: "nowrap" }}>
+                            Selectionner
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
             ) : (
               <div style={{ textAlign: "center", padding: 40, background: "#f7fafc", borderRadius: 10, color: "#a0aec0" }}>
                 <div style={{ fontSize: 36 }}>🗺️</div>
