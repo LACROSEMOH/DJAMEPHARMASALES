@@ -43,7 +43,7 @@ const DELEGUES = [
 ];
 
 // Clé Google Maps — À remplacer par votre vraie clé
-const GOOGLE_MAPS_KEY = "VOTRE_CLE_GOOGLE_MAPS_ICI";
+const GOOGLE_MAPS_KEY = "AIzaSyBuDzS8HMaADCuspI4fICayTiSyR8uu1sM";
 
 const ZONES_CI = [
   "Abidjan - Plateau", "Abidjan - Cocody", "Abidjan - Yopougon",
