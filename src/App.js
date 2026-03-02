@@ -36,8 +36,8 @@ const ADMINS = [
 // DÉLÉGUÉS MÉDICAUX — À personnaliser
 // ═══════════════════════════════════════════════
 const DELEGUES = [
-  { nom: "DOUCOURE ASSITA", pass: "DOUDJAME11" },
-  { nom: "OUATTARA YASMINE", pass: "OUATDJAME12" },
+  { nom: "DELEGUE 1", pass: "DELEG01" },
+  { nom: "DELEGUE 2", pass: "DELEG02" },
   { nom: "DELEGUE 3", pass: "DELEG03" },
   { nom: "DELEGUE 4", pass: "DELEG04" },
 ];
@@ -782,14 +782,31 @@ function DelegueInterface({ user, tournees, rapportsVisite, onSubmitVisite, onLo
 // ═══════════════════════════════════════════════
 // PANEL ADMIN — GESTION DELEGUES
 // ═══════════════════════════════════════════════
-function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDeleteTournee, pharmacies }) {
+function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDeleteTournee, pharmacies, onAddPharmacie }) {
   const [view, setView] = useState("dashboard");
   const [selectedDelegue, setSelectedDelegue] = useState(null);
   const [formTournee, setFormTournee] = useState({ delegue: "", pharmacie: "", ville: "", adresse: "", date: new Date().toISOString().split("T")[0], notes: "" });
   const [saving, setSaving] = useState(false);
+  const [savingTournee, setSavingTournee] = useState(false);
   const [searchZoneAdmin, setSearchZoneAdmin] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [placesResults, setPlacesResults] = useState([]);
+  const [loadingPlaces, setLoadingPlaces] = useState(false);
+  const [savedPharmacies, setSavedPharmacies] = useState([]);
+  const [selectedForAssign, setSelectedForAssign] = useState([]);
+  const [assignDelegue, setAssignDelegue] = useState("");
+  const [assignDate, setAssignDate] = useState(new Date().toISOString().split("T")[0]);
+  const [assignNotes, setAssignNotes] = useState("");
 
   const todayStr = new Date().toISOString().split("T")[0];
+
+  // Pharmacies sauvegardees dans la collection "pharmaciesVisite" (differente de stock)
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "pharmaciesVisite"), (snap) => {
+      setSavedPharmacies(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, []);
 
   const statsByDelegue = DELEGUES.map(d => {
     const mesT = tournees.filter(t => t.delegue === d.nom);
@@ -801,35 +818,120 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
     return { nom: d.nom, total: mesT.length, rapports: mesR.length, todayTotal: today.length, todayVisites: visitees, commandes, interesses };
   });
 
-  const handleCreateTournee = async () => {
-    if (!formTournee.delegue || !formTournee.pharmacie || !formTournee.date) return alert("Remplissez tous les champs obligatoires.");
-    setSaving(true);
-    await onCreateTournee({ ...formTournee, status: "a_visiter" });
-    setFormTournee({ ...formTournee, pharmacie: "", adresse: "", notes: "" });
-    setSaving(false);
-    alert("Pharmacie ajoutee a la tournee !");
+  // Recherche Google Places via notre backend proxy
+  const searchPlaces = async () => {
+    if (!searchInput.trim()) return alert("Entrez le nom d'une zone ou ville.");
+    setLoadingPlaces(true);
+    setPlacesResults([]);
+    try {
+      const query = "pharmacie " + searchInput + " Cote d'Ivoire";
+      const url = "https://maps.googleapis.com/maps/api/place/textsearch/json?query=" + encodeURIComponent(query) + "&key=" + GOOGLE_MAPS_KEY + "&language=fr";
+      // Use a CORS proxy since browser can't call Places API directly
+      const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+      const res = await fetch(proxyUrl);
+      const data = await res.json();
+      if (data.results && data.results.length > 0) {
+        setPlacesResults(data.results.slice(0, 15));
+      } else {
+        setPlacesResults([]);
+        alert("Aucune pharmacie trouvee pour cette zone. Essayez un autre nom.");
+      }
+    } catch(e) {
+      alert("Erreur de recherche. Verifiez votre connexion.");
+    }
+    setLoadingPlaces(false);
+  };
+
+  const handleSavePharmacie = async (place) => {
+    const already = savedPharmacies.find(p => p.placeId === place.place_id);
+    if (already) { alert("Cette pharmacie est deja dans votre liste !"); return; }
+    try {
+      await addDoc(collection(db, "pharmaciesVisite"), {
+        nom: place.name,
+        adresse: place.formatted_address || "",
+        ville: searchInput,
+        placeId: place.place_id,
+        lat: place.geometry?.location?.lat || null,
+        lng: place.geometry?.location?.lng || null,
+        savedAt: new Date().toISOString(),
+      });
+      alert("Pharmacie ajoutee a votre liste !");
+    } catch(e) { alert("Erreur lors de l'ajout."); }
+  };
+
+  const handleDeleteSaved = async (id) => {
+    if (!window.confirm("Retirer cette pharmacie de la liste ?")) return;
+    try { await deleteDoc(doc(db, "pharmaciesVisite", id)); } catch(e) {}
+  };
+
+  const toggleSelectPharmacie = (id) => {
+    setSelectedForAssign(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleAssignSelected = async () => {
+    if (!assignDelegue) return alert("Choisissez un delegue.");
+    if (selectedForAssign.length === 0) return alert("Selectionnez au moins une pharmacie.");
+    setSavingTournee(true);
+    const toAssign = savedPharmacies.filter(p => selectedForAssign.includes(p.id));
+    await Promise.all(toAssign.map(p =>
+      addDoc(collection(db, "tournees"), {
+        delegue: assignDelegue,
+        pharmacie: p.nom,
+        ville: p.ville || "",
+        adresse: p.adresse || "",
+        date: assignDate,
+        notes: assignNotes,
+        lat: p.lat || null,
+        lng: p.lng || null,
+        status: "a_visiter",
+        timestamp: new Date().toISOString(),
+      })
+    ));
+    setSelectedForAssign([]);
+    setAssignNotes("");
+    setSavingTournee(false);
+    alert(toAssign.length + " pharmacie(s) assignee(s) a " + assignDelegue + " pour le " + assignDate + " !");
+    setView("dashboard");
   };
 
   const interetColors = { froid: "#e53e3e", neutre: "#718096", interesse: "#d69e2e", commande: "#276749" };
   const interetLabels = { froid: "Froid", neutre: "Neutre", interesse: "Interesse", commande: "Commande" };
 
+  const filteredSaved = searchZoneAdmin
+    ? savedPharmacies.filter(p => (p.ville || "").toLowerCase().includes(searchZoneAdmin.toLowerCase().split(" - ").pop().toLowerCase()))
+    : savedPharmacies;
+
   return (
     <div>
+      {/* Navigation */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-        {[{ id: "dashboard", label: "Tableau de bord" }, { id: "assigner", label: "Assigner une tournee" }, { id: "rapports", label: "Rapports de visite" }].map(v => (
-          <button key={v.id} onClick={() => setView(v.id)} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: view === v.id ? "#744210" : "white", color: view === v.id ? "white" : "#4a5568", fontWeight: 700, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>{v.label}</button>
+        {[
+          { id: "dashboard", label: "Tableau de bord" },
+          { id: "assigner", label: "Assigner une tournee" + (selectedForAssign.length > 0 ? " (" + selectedForAssign.length + ")" : "") },
+          { id: "recherche", label: "Rechercher des pharmacies" },
+          { id: "rapports", label: "Rapports de visite" },
+        ].map(v => (
+          <button key={v.id} onClick={() => setView(v.id)} style={{
+            padding: "9px 18px", borderRadius: 8, border: "none",
+            background: view === v.id ? "#744210" : "white",
+            color: view === v.id ? "white" : "#4a5568",
+            fontWeight: 700, fontSize: 13, cursor: "pointer",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+            position: "relative",
+          }}>{v.label}</button>
         ))}
       </div>
 
+      {/* ── DASHBOARD ── */}
       {view === "dashboard" && (
         <>
           <div style={{ fontWeight: 800, color: "#744210", fontSize: 15, marginBottom: 14 }}>Suivi des delegues — Aujourd'hui {todayStr}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14, marginBottom: 24 }}>
             {statsByDelegue.map(d => (
               <div key={d.nom} style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", border: "2px solid " + (d.todayVisites === d.todayTotal && d.todayTotal > 0 ? "#9ae6b4" : "#fefcbf") }}>
                 <div style={{ padding: "14px 18px", background: "#fffff0", borderBottom: "1px solid #fefcbf" }}>
                   <div style={{ fontWeight: 800, fontSize: 15, color: "#744210" }}>{d.nom}</div>
-                  {d.todayTotal > 0 && (
+                  {d.todayTotal > 0 ? (
                     <div style={{ marginTop: 6 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
                         <span style={{ color: "#718096" }}>Tournee du jour</span>
@@ -839,8 +941,9 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
                         <div style={{ height: "100%", width: (d.todayTotal > 0 ? (d.todayVisites / d.todayTotal) * 100 : 0) + "%", background: "linear-gradient(90deg,#d69e2e,#276749)", borderRadius: 10 }} />
                       </div>
                     </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: "#a0aec0", marginTop: 4 }}>Aucune tournee assignee aujourd'hui</div>
                   )}
-                  {d.todayTotal === 0 && <div style={{ fontSize: 12, color: "#a0aec0", marginTop: 4 }}>Aucune tournee assignee aujourd'hui</div>}
                 </div>
                 <div style={{ padding: "12px 18px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   {[
@@ -864,7 +967,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
             ))}
           </div>
 
-          <div style={{ marginTop: 24, background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+          <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
             <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210", fontSize: 15 }}>Toutes les tournees assignees</div>
             {tournees.length === 0 ? (
               <div style={{ textAlign: "center", padding: 40, color: "#a0aec0" }}>Aucune tournee creee</div>
@@ -880,7 +983,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
                     {tournees.slice(0, 50).map((t, idx) => (
                       <tr key={t.id} style={{ background: idx % 2 === 0 ? "white" : "#f7fafc" }}>
                         <td style={{ ...tdS, fontWeight: 700 }}>{t.date}</td>
-                        <td style={{ ...tdS }}><span style={{ background: "#fffff0", color: "#744210", fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontSize: 12 }}>{t.delegue}</span></td>
+                        <td style={tdS}><span style={{ background: "#fffff0", color: "#744210", fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontSize: 12 }}>{t.delegue}</span></td>
                         <td style={{ ...tdS, fontWeight: 600 }}>{t.pharmacie}</td>
                         <td style={{ ...tdS, color: "#718096" }}>{t.ville || "-"}</td>
                         <td style={tdS}>
@@ -901,117 +1004,200 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
         </>
       )}
 
-      {view === "assigner" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "flex-start" }}>
-          {/* Colonne gauche - Formulaire */}
-          <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
-          <div style={{ fontWeight: 800, fontSize: 17, color: "#744210", marginBottom: 22 }}>Assigner une pharmacie a visiter</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div>
-              <label style={lS}>Delegue medical *</label>
-              <select value={formTournee.delegue} onChange={e => setFormTournee({ ...formTournee, delegue: e.target.value })} style={iS}>
-                <option value="">-- Choisir un delegue --</option>
-                {DELEGUES.map(d => <option key={d.nom}>{d.nom}</option>)}
-              </select>
+      {/* ── RECHERCHE PHARMACIES ── */}
+      {view === "recherche" && (
+        <div>
+          {/* Barre de recherche */}
+          <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 20 }}>
+            <div style={{ fontWeight: 800, color: "#744210", fontSize: 16, marginBottom: 6 }}>Rechercher des pharmacies</div>
+            <div style={{ fontSize: 13, color: "#718096", marginBottom: 16 }}>Entrez une ville ou un quartier — les pharmacies trouvees peuvent etre ajoutees a votre liste</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <input
+                placeholder="Ex: Cocody, Plateau, Bouake, Yopougon..."
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && searchPlaces()}
+                style={{ ...iS, flex: 1 }}
+              />
+              <button onClick={searchPlaces} disabled={loadingPlaces} style={{ padding: "10px 22px", background: loadingPlaces ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: loadingPlaces ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+                {loadingPlaces ? "Recherche..." : "Rechercher"}
+              </button>
             </div>
-            <div>
-              <label style={lS}>Date de visite *</label>
-              <input type="date" value={formTournee.date} onChange={e => setFormTournee({ ...formTournee, date: e.target.value })} style={iS} />
-            </div>
-            <div>
-              <label style={lS}>Pharmacie a visiter *</label>
-              <input placeholder="Nom de la pharmacie" value={formTournee.pharmacie} onChange={e => setFormTournee({ ...formTournee, pharmacie: e.target.value })} style={iS} />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div>
-                <label style={lS}>Ville / Zone *</label>
-                <select value={formTournee.ville} onChange={e => setFormTournee({ ...formTournee, ville: e.target.value })} style={iS}>
-                  <option value="">-- Zone --</option>
-                  {ZONES_CI.map(z => <option key={z}>{z}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={lS}>Adresse (optionnel)</label>
-                <input placeholder="Rue, quartier..." value={formTournee.adresse} onChange={e => setFormTournee({ ...formTournee, adresse: e.target.value })} style={iS} />
-              </div>
-            </div>
-            <div>
-              <label style={lS}>Instructions pour le delegue (optionnel)</label>
-              <textarea placeholder="Insister sur tel produit, voir Dr X..." value={formTournee.notes} onChange={e => setFormTournee({ ...formTournee, notes: e.target.value })} style={{ ...iS, height: 70, resize: "vertical" }} />
-            </div>
-            <button onClick={handleCreateTournee} disabled={saving} style={{ padding: "13px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: saving ? "not-allowed" : "pointer" }}>
-              {saving ? "Enregistrement..." : "Ajouter a la tournee"}
-            </button>
-          </div>
           </div>
 
-          {/* Colonne droite - Recherche carte */}
-          <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
-            <div style={{ fontWeight: 800, fontSize: 15, color: "#744210", marginBottom: 14 }}>
-              Rechercher une pharmacie sur la carte
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={lS}>Choisir une zone de recherche</label>
-              <select value={searchZoneAdmin} onChange={e => {
-                setSearchZoneAdmin(e.target.value);
-                if (e.target.value) setFormTournee(f => ({ ...f, ville: e.target.value }));
-              }} style={iS}>
-                <option value="">-- Choisir une zone --</option>
-                {ZONES_CI.map(z => <option key={z}>{z}</option>)}
-              </select>
-            </div>
-            <div style={{ fontSize: 12, color: "#718096", marginBottom: 10 }}>
-              Cliquez sur une pharmacie sur la carte, copiez son nom et collez-le dans le formulaire a gauche.
-            </div>
-            {searchZoneAdmin ? (
-              <>
-                <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid #e2e8f0", marginBottom: 14 }}>
-                  <iframe
-                    title="carte-admin"
-                    width="100%" height="380"
-                    style={{ border: 0, display: "block" }}
-                    loading="lazy"
-                    src={"https://www.google.com/maps/embed/v1/search?key=" + GOOGLE_MAPS_KEY + "&q=pharmacie+" + encodeURIComponent(searchZoneAdmin) + "+Cote+Ivoire&language=fr"}
-                  />
-                </div>
-                <div style={{ background: "#fffff0", borderRadius: 10, padding: 14, border: "1px solid #f6e05e" }}>
-                  <div style={{ fontWeight: 800, color: "#744210", fontSize: 13, marginBottom: 10 }}>
-                    Pharmacies enregistrees dans cette zone — cliquez pour pre-remplir
-                  </div>
-                  {pharmacies.filter(p => (p.ville || "").toLowerCase().includes(searchZoneAdmin.toLowerCase().split(" - ").pop().toLowerCase())).length === 0 ? (
-                    <div style={{ fontSize: 12, color: "#a0aec0", fontStyle: "italic" }}>
-                      Aucune pharmacie enregistree pour cette zone dans votre base de stock.
-                      Tapez le nom manuellement apres avoir repere la pharmacie sur la carte.
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      {pharmacies.filter(p => (p.ville || "").toLowerCase().includes(searchZoneAdmin.toLowerCase().split(" - ").pop().toLowerCase())).map(p => (
-                        <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "white", borderRadius: 8, padding: "8px 12px", border: "1px solid #e2e8f0" }}>
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: 13, color: "#1a365d" }}>{p.nom}</div>
-                            <div style={{ fontSize: 11, color: "#718096" }}>{p.ville}</div>
-                          </div>
-                          <button
-                            onClick={() => setFormTournee(f => ({ ...f, pharmacie: p.nom, ville: p.ville || searchZoneAdmin, adresse: "" }))}
-                            style={{ padding: "6px 12px", background: "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12, whiteSpace: "nowrap" }}>
-                            Selectionner
+          {/* Resultats Google Places */}
+          {placesResults.length > 0 && (
+            <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 20 }}>
+              <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>{placesResults.length} pharmacies trouvees pour "{searchInput}"</span>
+                <span style={{ fontSize: 12, color: "#718096", fontWeight: 400 }}>Cliquez "Ajouter" pour sauvegarder dans votre liste</span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {placesResults.map((place, idx) => {
+                  const alreadySaved = savedPharmacies.find(p => p.placeId === place.place_id);
+                  return (
+                    <div key={place.place_id} style={{ padding: "14px 20px", borderBottom: "1px solid #f7fafc", display: "flex", justifyContent: "space-between", alignItems: "center", background: idx % 2 === 0 ? "white" : "#f7fafc", gap: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: "#1a365d" }}>{place.name}</div>
+                        <div style={{ fontSize: 12, color: "#718096", marginTop: 3 }}>{place.formatted_address}</div>
+                        {place.rating && <div style={{ fontSize: 11, color: "#d69e2e", marginTop: 2 }}>{"⭐".repeat(Math.round(place.rating))} {place.rating}/5</div>}
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                        <a href={"https://www.google.com/maps/place/?q=place_id:" + place.place_id} target="_blank" rel="noreferrer"
+                          style={{ padding: "7px 12px", background: "#ebf4ff", color: "#2b6cb0", borderRadius: 8, fontWeight: 600, fontSize: 12, textDecoration: "none" }}>
+                          Carte
+                        </a>
+                        {alreadySaved ? (
+                          <span style={{ padding: "7px 12px", background: "#f0fff4", color: "#276749", borderRadius: 8, fontWeight: 700, fontSize: 12 }}>Deja sauvegardee</span>
+                        ) : (
+                          <button onClick={() => handleSavePharmacie(place)} style={{ padding: "7px 14px", background: "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>
+                            + Ajouter
                           </button>
-                        </div>
-                      ))}
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-              </>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Liste sauvegardee */}
+          <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>Ma liste de pharmacies ({savedPharmacies.length})</span>
+              {savedPharmacies.length > 0 && (
+                <button onClick={() => setView("assigner")} style={{ padding: "7px 16px", background: "#276749", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                  Assigner aux delegues
+                </button>
+              )}
+            </div>
+            {savedPharmacies.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40, color: "#a0aec0" }}>
+                <div style={{ fontSize: 36 }}>🏥</div>
+                <div style={{ marginTop: 10 }}>Aucune pharmacie sauvegardee. Utilisez la recherche ci-dessus.</div>
+              </div>
             ) : (
-              <div style={{ textAlign: "center", padding: 40, background: "#f7fafc", borderRadius: 10, color: "#a0aec0" }}>
-                <div style={{ fontSize: 36 }}>🗺️</div>
-                <div style={{ marginTop: 10, fontSize: 13 }}>Selectionnez une zone pour voir les pharmacies</div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead><tr style={{ background: "#f7fafc" }}>
+                    {["Pharmacie", "Adresse", "Zone", ""].map(h => (
+                      <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#4a5568", fontWeight: 700, borderBottom: "2px solid #e2e8f0", fontSize: 12 }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {savedPharmacies.map((p, idx) => (
+                      <tr key={p.id} style={{ background: idx % 2 === 0 ? "white" : "#f7fafc" }}>
+                        <td style={{ ...tdS, fontWeight: 700 }}>{p.nom}</td>
+                        <td style={{ ...tdS, fontSize: 12, color: "#718096", maxWidth: 250 }}>{p.adresse}</td>
+                        <td style={tdS}><span style={{ background: "#fffff0", color: "#744210", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>{p.ville}</span></td>
+                        <td style={tdS}>
+                          <button onClick={() => handleDeleteSaved(p.id)} style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 6, padding: "4px 8px", cursor: "pointer", color: "#e53e3e", fontSize: 11 }}>X</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
         </div>
       )}
 
+      {/* ── ASSIGNER TOURNEE ── */}
+      {view === "assigner" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "flex-start" }}>
+          {/* Colonne gauche — selection pharmacies */}
+          <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: "#744210", marginBottom: 6 }}>Selectionner les pharmacies</div>
+            <div style={{ fontSize: 13, color: "#718096", marginBottom: 14 }}>Cochez les pharmacies a inclure dans la tournee</div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={lS}>Filtrer par zone</label>
+              <select value={searchZoneAdmin} onChange={e => setSearchZoneAdmin(e.target.value)} style={iS}>
+                <option value="">Toutes les zones</option>
+                {ZONES_CI.map(z => <option key={z}>{z}</option>)}
+              </select>
+            </div>
+
+            {filteredSaved.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 30, background: "#f7fafc", borderRadius: 10, color: "#a0aec0" }}>
+                <div style={{ fontSize: 30 }}>🏥</div>
+                <div style={{ marginTop: 8, fontSize: 13 }}>Aucune pharmacie dans cette zone.</div>
+                <button onClick={() => setView("recherche")} style={{ marginTop: 12, padding: "8px 16px", background: "#744210", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>
+                  Rechercher des pharmacies
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: "#718096" }}>{selectedForAssign.length} selectionnee(s)</span>
+                  <button onClick={() => setSelectedForAssign(selectedForAssign.length === filteredSaved.length ? [] : filteredSaved.map(p => p.id))}
+                    style={{ fontSize: 12, background: "none", border: "none", color: "#744210", cursor: "pointer", fontWeight: 700 }}>
+                    {selectedForAssign.length === filteredSaved.length ? "Tout deselect." : "Tout selectionner"}
+                  </button>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 380, overflowY: "auto" }}>
+                  {filteredSaved.map(p => (
+                    <div key={p.id} onClick={() => toggleSelectPharmacie(p.id)}
+                      style={{ padding: "12px 14px", borderRadius: 10, border: "2px solid", borderColor: selectedForAssign.includes(p.id) ? "#d69e2e" : "#e2e8f0", background: selectedForAssign.includes(p.id) ? "#fffff0" : "white", cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
+                      <div style={{ width: 20, height: 20, borderRadius: 4, border: "2px solid", borderColor: selectedForAssign.includes(p.id) ? "#d69e2e" : "#cbd5e0", background: selectedForAssign.includes(p.id) ? "#d69e2e" : "white", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 1 }}>
+                        {selectedForAssign.includes(p.id) && <span style={{ color: "white", fontSize: 13, fontWeight: 900 }}>✓</span>}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "#1a365d" }}>{p.nom}</div>
+                        <div style={{ fontSize: 11, color: "#718096", marginTop: 2 }}>{p.adresse}</div>
+                        <span style={{ background: "#fffff0", color: "#744210", padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600 }}>{p.ville}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Colonne droite — delegue + date + valider */}
+          <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: "#744210", marginBottom: 20 }}>Assigner la tournee</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={lS}>Delegue medical *</label>
+                <select value={assignDelegue} onChange={e => setAssignDelegue(e.target.value)} style={iS}>
+                  <option value="">-- Choisir un delegue --</option>
+                  {DELEGUES.map(d => <option key={d.nom}>{d.nom}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lS}>Date de la tournee *</label>
+                <input type="date" value={assignDate} onChange={e => setAssignDate(e.target.value)} style={iS} />
+              </div>
+              <div>
+                <label style={lS}>Instructions (optionnel)</label>
+                <textarea placeholder="Insister sur tel produit..." value={assignNotes} onChange={e => setAssignNotes(e.target.value)} style={{ ...iS, height: 80, resize: "vertical" }} />
+              </div>
+
+              {/* Recap */}
+              <div style={{ background: "#f7fafc", borderRadius: 10, padding: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#4a5568", marginBottom: 8 }}>Recapitulatif :</div>
+                {selectedForAssign.length === 0 ? (
+                  <div style={{ fontSize: 12, color: "#a0aec0" }}>Aucune pharmacie selectionnee</div>
+                ) : (
+                  savedPharmacies.filter(p => selectedForAssign.includes(p.id)).map(p => (
+                    <div key={p.id} style={{ fontSize: 12, color: "#276749", fontWeight: 600, marginBottom: 4 }}>✓ {p.nom}</div>
+                  ))
+                )}
+              </div>
+
+              <button onClick={handleAssignSelected} disabled={savingTournee || selectedForAssign.length === 0 || !assignDelegue}
+                style={{ padding: "14px", background: (savingTournee || selectedForAssign.length === 0 || !assignDelegue) ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 900, fontSize: 15, cursor: "pointer" }}>
+                {savingTournee ? "Assignation..." : "Assigner " + selectedForAssign.length + " pharmacie(s)"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── RAPPORTS ── */}
       {view === "rapports" && (
         <div>
           <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
@@ -1045,6 +1231,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
                     </div>
                     <div style={{ marginTop: 10, fontSize: 13 }}>
                       <div>Pharmacien : <b>{r.pharmacienPresent === "oui" ? (r.nomPharmacien || "Present") : "Absent"}</b></div>
+                      {r.responsablePresent && <div style={{ marginTop: 2 }}>Responsable : <b>{r.responsablePresent === "oui" ? (r.nomResponsable || "Present") : "Absent"}</b></div>}
                       {r.produitsPresentes && r.produitsPresentes.length > 0 && (
                         <div style={{ marginTop: 6 }}>
                           {r.produitsPresentes.map(p => (
@@ -1065,9 +1252,6 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
   );
 }
 
-// ═══════════════════════════════════════════════
-// INTERFACE STOCK PHARMACIES (Admin)
-// ═══════════════════════════════════════════════
 function StockInterface({ pharmacies, onAddPharmacie, onDeletePharmacie, onAddLivraison, onDeletePharmacieProduit }) {
   const [view, setView] = useState("liste"); // liste | detail | ajouter
   const [selected, setSelected] = useState(null);
@@ -1758,6 +1942,7 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, 
                 onCreateTournee={onCreateTournee}
                 onDeleteTournee={onDeleteTournee}
                 pharmacies={pharmacies}
+                onAddPharmacie={onAddPharmacie}
               />
             )}
 
