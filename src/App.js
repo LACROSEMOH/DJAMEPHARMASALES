@@ -740,6 +740,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
   const [selectedDelegue, setSelectedDelegue] = useState(null);
   const [formTournee, setFormTournee] = useState({ delegue: "", pharmacie: "", ville: "", adresse: "", date: new Date().toISOString().split("T")[0], notes: "" });
   const [saving, setSaving] = useState(false);
+  const [searchZoneAdmin, setSearchZoneAdmin] = useState("");
 
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -854,7 +855,9 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
       )}
 
       {view === "assigner" && (
-        <div style={{ background: "white", borderRadius: 14, padding: 28, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", maxWidth: 560 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "flex-start" }}>
+          {/* Colonne gauche - Formulaire */}
+          <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
           <div style={{ fontWeight: 800, fontSize: 17, color: "#744210", marginBottom: 22 }}>Assigner une pharmacie a visiter</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
@@ -892,6 +895,43 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
             <button onClick={handleCreateTournee} disabled={saving} style={{ padding: "13px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: saving ? "not-allowed" : "pointer" }}>
               {saving ? "Enregistrement..." : "Ajouter a la tournee"}
             </button>
+          </div>
+          </div>
+
+          {/* Colonne droite - Recherche carte */}
+          <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+            <div style={{ fontWeight: 800, fontSize: 15, color: "#744210", marginBottom: 14 }}>
+              Rechercher une pharmacie sur la carte
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={lS}>Choisir une zone de recherche</label>
+              <select value={searchZoneAdmin} onChange={e => {
+                setSearchZoneAdmin(e.target.value);
+                if (e.target.value) setFormTournee(f => ({ ...f, ville: e.target.value }));
+              }} style={iS}>
+                <option value="">-- Choisir une zone --</option>
+                {ZONES_CI.map(z => <option key={z}>{z}</option>)}
+              </select>
+            </div>
+            <div style={{ fontSize: 12, color: "#718096", marginBottom: 10 }}>
+              Cliquez sur une pharmacie sur la carte, copiez son nom et collez-le dans le formulaire a gauche.
+            </div>
+            {searchZoneAdmin ? (
+              <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid #e2e8f0" }}>
+                <iframe
+                  title="carte-admin"
+                  width="100%" height="450"
+                  style={{ border: 0, display: "block" }}
+                  loading="lazy"
+                  src={"https://www.google.com/maps/embed/v1/search?key=" + GOOGLE_MAPS_KEY + "&q=pharmacie+" + encodeURIComponent(searchZoneAdmin) + "+Cote+Ivoire&language=fr"}
+                />
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: 40, background: "#f7fafc", borderRadius: 10, color: "#a0aec0" }}>
+                <div style={{ fontSize: 36 }}>🗺️</div>
+                <div style={{ marginTop: 10, fontSize: 13 }}>Selectionnez une zone pour voir les pharmacies</div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1755,12 +1795,29 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Écoute pharmacies/stocks en temps réel
+  // Ecoute pharmacies/stocks en temps reel
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "pharmacies"), (snap) => {
       setPharmacies(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
     return () => unsub();
+  }, []);
+
+  // Ecoute tournees delegues en temps reel
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "tournees"), (snap) => {
+      setTournees(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  // Ecoute rapports de visite en temps reel
+  useEffect(() => {
+    const q2 = query(collection(db, "rapportsVisite"), orderBy("timestamp", "desc"));
+    const unsub2 = onSnapshot(q2, (snap) => {
+      setRapportsVisite(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, () => {});
+    return () => unsub2();
   }, []);
 
   // Soumettre une vente + décrémenter le stock
