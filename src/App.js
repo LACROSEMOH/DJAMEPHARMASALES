@@ -36,8 +36,8 @@ const ADMINS = [
 // DÉLÉGUÉS MÉDICAUX — À personnaliser
 // ═══════════════════════════════════════════════
 const DELEGUES = [
-  { nom: "DELEGUE 1", pass: "DELEG01" },
-  { nom: "DELEGUE 2", pass: "DELEG02" },
+  { nom: "DOUCOURE ASSITA", pass: "DOUDJAME11" },
+  { nom: "OUATTARA YASMINE", pass: "OUATDJAME12" },
   { nom: "DELEGUE 3", pass: "DELEG03" },
   { nom: "DELEGUE 4", pass: "DELEG04" },
 ];
