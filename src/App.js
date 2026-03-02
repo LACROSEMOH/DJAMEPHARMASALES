@@ -23,13 +23,36 @@ const db = getFirestore(firebaseApp);
 const COMMERCIALES = [
   { nom: "ANNE N'GORAN",      pass: "ANNEDJAME11" },
   { nom: "TIE LOU CLAUDINE",  pass: "LOUDJAME12" },
-  { nom: "AICHA DIALLO",     pass: "AICHADJAME13" },
+  { nom: "AICHA LACROSE",     pass: "AICHADJAME13" },
   { nom: "ANNIMATRICE1",      pass: "ANIMDJAME14" },
   { nom: "ANNIMATRICE2",      pass: "ANIMDJAME15" },
 ];
 const ADMINS = [
   { login: "TOURE AWA DIA",        pass: "AWADJAME26" },
   { login: "MOHAMED KONE YASSINE", pass: "YASSINE26@" },
+];
+
+// ═══════════════════════════════════════════════
+// DÉLÉGUÉS MÉDICAUX — À personnaliser
+// ═══════════════════════════════════════════════
+const DELEGUES = [
+  { nom: "DELEGUE 1", pass: "DELEG01" },
+  { nom: "DELEGUE 2", pass: "DELEG02" },
+  { nom: "DELEGUE 3", pass: "DELEG03" },
+  { nom: "DELEGUE 4", pass: "DELEG04" },
+];
+
+// Clé Google Maps — À remplacer par votre vraie clé
+const GOOGLE_MAPS_KEY = "VOTRE_CLE_GOOGLE_MAPS_ICI";
+
+const ZONES_CI = [
+  "Abidjan - Plateau", "Abidjan - Cocody", "Abidjan - Yopougon",
+  "Abidjan - Abobo", "Abidjan - Adjamé", "Abidjan - Marcory",
+  "Abidjan - Koumassi", "Abidjan - Port-Bouët", "Abidjan - Treichville",
+  "Abidjan - Attécoubé", "Abidjan - Bingerville",
+  "Bouaké", "Yamoussoukro", "San-Pédro", "Daloa", "Korhogo",
+  "Man", "Abengourou", "Divo", "Gagnoa", "Soubré", "Bondoukou",
+  "Odienné", "Touba", "Ferkessédougou", "Katiola", "Séguéla",
 ];
 
 // ═══════════════════════════════════════════════
@@ -96,10 +119,6 @@ const PRODUITS_PRIX = {
   "Silver Care Pâte kid": 1300,
   "Silver Care Pâte PHARMA PLUS MEDIUM": 2500,
   "Silver Care Pâte PHARMA PLUS SENSITIVE": 2500,
-  "Silver Care BROSSE ONE MEDIUM": 3900,
-  "Silver Care BROSSE KID BRUSH": 1500,
-  "Silver Care Pâte FOUR FRUIT 3 ANS": 1300,
-  "Silver Care Pâte PROTECTION CONTINUE": 2200,
 };
 const PRODUITS = Object.keys(PRODUITS_PRIX);
 
@@ -166,6 +185,13 @@ function LoginScreen({ onLogin }) {
                   <div style={{ fontSize: 12, color: "#718096", marginTop: 3 }}>Tableau de bord & export Excel</div>
                 </div>
               </button>
+              <button onClick={() => { setRole("delegue"); setError(""); }} style={{ padding: "18px 24px", borderRadius: 14, border: "2px solid #fefcbf", background: "#fffff0", cursor: "pointer", display: "flex", alignItems: "center", gap: 16, textAlign: "left" }}>
+                <span style={{ fontSize: 40 }}>🩺</span>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: "#744210" }}>Délégué Médical</div>
+                  <div style={{ fontSize: 12, color: "#718096", marginTop: 3 }}>Tournées & visites pharmacies</div>
+                </div>
+              </button>
             </div>
           </div>
         ) : role === "commerciale" ? (
@@ -215,6 +241,45 @@ function LoginScreen({ onLogin }) {
             </div>
           </div>
         )}
+        {role === "delegue" && (
+          <div style={{ background: "white", borderRadius: 20, padding: 32, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <button onClick={() => { setRole(null); setError(""); }} style={{ background: "none", border: "none", color: "#718096", cursor: "pointer", fontSize: 13, marginBottom: 18 }}>← Retour</button>
+            <div style={{ fontWeight: 800, fontSize: 17, color: "#744210", marginBottom: 22 }}>🩺 Connexion Délégué Médical</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={lS}>Votre nom</label>
+                <select value={nom} onChange={e => setNom(e.target.value)} style={iS}>
+                  <option value="">-- Sélectionnez votre nom --</option>
+                  {DELEGUES.map(d => <option key={d.nom}>{d.nom}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lS}>Mot de passe</label>
+                <div style={{ position: "relative" }}>
+                  <input type={showPass ? "text" : "password"} placeholder="••••••••" value={pass} onChange={e => setPass(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        const found = DELEGUES.find(d => d.nom === nom && d.pass === pass);
+                        if (found) { setError(""); onLogin({ role: "delegue", nom: found.nom }); }
+                        else setError("Nom ou mot de passe incorrect.");
+                      }
+                    }}
+                    style={{ ...iS, paddingRight: 44 }} />
+                  <button onClick={() => setShowPass(s => !s)} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 16, opacity: 0.6 }}>{showPass ? "🙈" : "👁️"}</button>
+                </div>
+              </div>
+              {error && <div style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 8, padding: "10px 14px", color: "#e53e3e", fontSize: 13 }}>⚠️ {error}</div>}
+              <button onClick={() => {
+                const found = DELEGUES.find(d => d.nom === nom && d.pass === pass);
+                if (found) { setError(""); onLogin({ role: "delegue", nom: found.nom }); }
+                else setError("Nom ou mot de passe incorrect.");
+              }} style={{ padding: "13px", background: "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer" }}>
+                Accéder à mes tournées
+              </button>
+            </div>
+          </div>
+        )}
+
         <div style={{ textAlign: "center", color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 20 }}>DjamePharmaSales © 2025</div>
       </div>
     </div>
@@ -375,6 +440,514 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
 // ═══════════════════════════════════════════════
 // INTERFACE ADMINISTRATEUR
 // ═══════════════════════════════════════════════
+
+
+// ═══════════════════════════════════════════════
+// INTERFACE DELEGUE MEDICAL
+// ═══════════════════════════════════════════════
+function DelegueInterface({ user, tournees, rapportsVisite, onSubmitVisite, onLogout }) {
+  const [activeTab, setActiveTab] = useState("tournee");
+  const [selectedPharmacie, setSelectedPharmacie] = useState(null);
+  const [showRapportModal, setShowRapportModal] = useState(false);
+  const [rapportForm, setRapportForm] = useState({
+    pharmacienPresent: "oui", nomPharmacien: "", produitsPresentes: [], interet: "neutre", notes: "",
+  });
+  const [searchZone, setSearchZone] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const mesTournees = tournees.filter(t => t.delegue === user.nom);
+  const mesRapports = rapportsVisite.filter(r => r.delegue === user.nom);
+  const todayStr = new Date().toISOString().split("T")[0];
+  const tourneeDuJour = mesTournees.filter(t => t.date === todayStr);
+  const visitees = tourneeDuJour.filter(t => t.status === "visite").length;
+  const total = tourneeDuJour.length;
+
+  const interetColors = { froid: "#e53e3e", neutre: "#718096", interesse: "#d69e2e", commande: "#276749" };
+  const interetLabels = { froid: "Froid", neutre: "Neutre", interesse: "Interesse", commande: "Commande" };
+
+  const handleOpenRapport = (ph) => {
+    setSelectedPharmacie(ph);
+    setRapportForm({ pharmacienPresent: "oui", nomPharmacien: "", produitsPresentes: [], interet: "neutre", notes: "" });
+    setShowRapportModal(true);
+  };
+
+  const handleSubmitRapport = async () => {
+    if (rapportForm.produitsPresentes.length === 0) return alert("Selectionnez au moins un produit presente.");
+    setSaving(true);
+    await onSubmitVisite({
+      delegue: user.nom,
+      tourneeId: selectedPharmacie.id,
+      pharmacie: selectedPharmacie.pharmacie,
+      ville: selectedPharmacie.ville || "",
+      date: todayStr,
+      ...rapportForm,
+      timestamp: new Date().toISOString(),
+    });
+    setShowRapportModal(false);
+    setSaving(false);
+  };
+
+  const toggleProduit = (p) => setRapportForm(f => ({
+    ...f, produitsPresentes: f.produitsPresentes.includes(p) ? f.produitsPresentes.filter(x => x !== p) : [...f.produitsPresentes, p]
+  }));
+
+  return (
+    <div style={{ fontFamily: "'Segoe UI',system-ui,sans-serif", minHeight: "100vh", background: "#fefce8" }}>
+      <div style={{ background: "linear-gradient(135deg,#744210,#d69e2e)", color: "white" }}>
+        <div style={{ maxWidth: 800, margin: "0 auto", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 900 }}>DjamePharmaSales - Delegue Medical</div>
+            <div style={{ fontSize: 13, opacity: 0.85, marginTop: 2 }}>Bonjour, <b>{user.nom}</b></div>
+          </div>
+          <button onClick={onLogout} style={{ padding: "7px 16px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.6)", background: "transparent", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Deconnexion</button>
+        </div>
+        <div style={{ maxWidth: 800, margin: "0 auto", padding: "0 20px", display: "flex", gap: 4 }}>
+          {[{ id: "tournee", label: "Ma tournee" }, { id: "carte", label: "Carte" }, { id: "rapports", label: "Historique" }].map(t => (
+            <button key={t.id} onClick={() => setActiveTab(t.id)} style={{ padding: "9px 16px", border: "none", background: activeTab === t.id ? "white" : "transparent", color: activeTab === t.id ? "#744210" : "rgba(255,255,255,0.85)", fontWeight: 700, fontSize: 13, cursor: "pointer", borderRadius: "8px 8px 0 0" }}>{t.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 800, margin: "0 auto", padding: 20 }}>
+        {activeTab === "tournee" && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 20 }}>
+              {[
+                { label: "Pharmacies du jour", val: total, color: "#d69e2e" },
+                { label: "Visitees", val: visitees, color: "#276749" },
+                { label: "Restantes", val: total - visitees, color: "#e53e3e" },
+              ].map(k => (
+                <div key={k.label} style={{ background: "white", borderRadius: 12, padding: "16px 18px", boxShadow: "0 2px 8px rgba(0,0,0,0.07)", borderLeft: "4px solid " + k.color }}>
+                  <div style={{ fontSize: 11, color: "#718096", fontWeight: 700, textTransform: "uppercase" }}>{k.label}</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: k.color, marginTop: 6 }}>{k.val}</div>
+                </div>
+              ))}
+            </div>
+
+            {total > 0 && (
+              <div style={{ background: "white", borderRadius: 12, padding: "14px 18px", marginBottom: 18, boxShadow: "0 2px 8px rgba(0,0,0,0.07)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13, fontWeight: 600 }}>
+                  <span>Progression de la journee</span>
+                  <span style={{ color: "#276749" }}>{Math.round((visitees / total) * 100)}%</span>
+                </div>
+                <div style={{ height: 12, background: "#e2e8f0", borderRadius: 10 }}>
+                  <div style={{ height: "100%", width: ((visitees / total) * 100) + "%", background: "linear-gradient(90deg,#d69e2e,#276749)", borderRadius: 10 }} />
+                </div>
+              </div>
+            )}
+
+            <div style={{ fontWeight: 800, fontSize: 15, color: "#744210", marginBottom: 12 }}>Tournee du {todayStr}</div>
+
+            {tourneeDuJour.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "50px 20px", background: "white", borderRadius: 14, color: "#a0aec0" }}>
+                <div style={{ fontSize: 50 }}>🏥</div>
+                <div style={{ marginTop: 12, fontSize: 16, fontWeight: 600 }}>Aucune pharmacie assignee pour aujourd'hui</div>
+                <div style={{ marginTop: 6, fontSize: 13 }}>Votre administrateur va creer votre tournee</div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {tourneeDuJour.map((t, idx) => (
+                  <div key={t.id} style={{ background: "white", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", border: t.status === "visite" ? "2px solid #9ae6b4" : "2px solid #fefcbf", overflow: "hidden" }}>
+                    <div style={{ padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ width: 28, height: 28, borderRadius: "50%", background: t.status === "visite" ? "#276749" : "#d69e2e", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 13, flexShrink: 0 }}>{idx + 1}</div>
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: 15, color: "#1a365d" }}>{t.pharmacie}</div>
+                            <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>{t.ville || "Cote d'Ivoire"}{t.adresse ? " — " + t.adresse : ""}</div>
+                          </div>
+                        </div>
+                        {t.notes && <div style={{ marginTop: 8, fontSize: 12, color: "#4a5568", background: "#f7fafc", borderRadius: 6, padding: "6px 10px" }}>{t.notes}</div>}
+                        {t.status === "visite" && <div style={{ marginTop: 8, fontSize: 12, color: "#276749", fontWeight: 700 }}>Visite effectuee</div>}
+                      </div>
+                      <div style={{ marginLeft: 12 }}>
+                        {t.status !== "visite" ? (
+                          <button onClick={() => handleOpenRapport(t)} style={{ padding: "10px 14px", background: "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, cursor: "pointer", fontWeight: 800, fontSize: 12 }}>
+                            Marquer visite
+                          </button>
+                        ) : (
+                          <span style={{ background: "#f0fff4", color: "#276749", padding: "8px 12px", borderRadius: 10, fontWeight: 700, fontSize: 12 }}>Fait</span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ padding: "8px 18px", borderTop: "1px solid #e2e8f0", background: "#f7fafc" }}>
+                      <a href={"https://www.google.com/maps/search/" + encodeURIComponent(t.pharmacie + " " + (t.ville || "Abidjan") + " Cote d'Ivoire")} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#2b6cb0", fontWeight: 600, textDecoration: "none" }}>
+                        Ouvrir dans Google Maps
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === "carte" && (
+          <div>
+            <div style={{ background: "white", borderRadius: 14, padding: 20, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, color: "#744210", fontSize: 15, marginBottom: 12 }}>Rechercher des pharmacies par zone</div>
+              <select value={searchZone} onChange={e => setSearchZone(e.target.value)} style={{ ...iS, marginBottom: 12 }}>
+                <option value="">-- Choisir une zone --</option>
+                {ZONES_CI.map(z => <option key={z}>{z}</option>)}
+              </select>
+              {searchZone && (
+                <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #e2e8f0" }}>
+                  <iframe
+                    title="carte-pharmacies"
+                    width="100%" height="420"
+                    style={{ border: 0, display: "block" }}
+                    loading="lazy"
+                    src={"https://www.google.com/maps/embed/v1/search?key=" + GOOGLE_MAPS_KEY + "&q=pharmacie+" + encodeURIComponent(searchZone) + "+Cote+Ivoire&language=fr"}
+                  />
+                </div>
+              )}
+              {!searchZone && (
+                <div style={{ textAlign: "center", padding: 40, color: "#a0aec0", background: "#f7fafc", borderRadius: 12 }}>
+                  <div style={{ fontSize: 40 }}>🗺️</div>
+                  <div style={{ marginTop: 10 }}>Choisissez une zone pour voir les pharmacies sur la carte</div>
+                </div>
+              )}
+            </div>
+            <div style={{ background: "white", borderRadius: 14, padding: 20, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+              <div style={{ fontWeight: 800, color: "#744210", marginBottom: 12 }}>Raccourcis vers ma tournee du jour</div>
+              {tourneeDuJour.length === 0 ? (
+                <div style={{ color: "#a0aec0", fontSize: 13 }}>Aucune pharmacie assignee aujourd'hui</div>
+              ) : (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {tourneeDuJour.map(t => (
+                    <a key={t.id} href={"https://www.google.com/maps/search/" + encodeURIComponent(t.pharmacie + " " + (t.ville || "Abidjan") + " Cote d'Ivoire")} target="_blank" rel="noreferrer"
+                      style={{ background: t.status === "visite" ? "#f0fff4" : "#fffff0", border: "1px solid " + (t.status === "visite" ? "#9ae6b4" : "#f6e05e"), borderRadius: 8, padding: "7px 14px", fontSize: 12, color: "#744210", fontWeight: 600, textDecoration: "none" }}>
+                      {t.status === "visite" ? "Fait : " : ""}{t.pharmacie}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "rapports" && (
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: "#744210", marginBottom: 14 }}>
+              Historique des visites — {mesRapports.length} rapport{mesRapports.length > 1 ? "s" : ""}
+            </div>
+            {mesRapports.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 50, background: "white", borderRadius: 14, color: "#a0aec0" }}>
+                <div style={{ fontSize: 44 }}>📭</div>
+                <div style={{ marginTop: 12 }}>Aucune visite enregistree</div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {mesRapports.slice(0, 30).map(r => (
+                  <div key={r.id} style={{ background: "white", borderRadius: 14, padding: "16px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.07)", borderLeft: "4px solid " + (interetColors[r.interet] || "#718096") }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 15, color: "#1a365d" }}>{r.pharmacie}</div>
+                        <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>{r.date}{r.ville ? " — " + r.ville : ""}</div>
+                      </div>
+                      <span style={{ background: (interetColors[r.interet] || "#718096") + "20", color: interetColors[r.interet] || "#718096", padding: "4px 12px", borderRadius: 20, fontWeight: 800, fontSize: 12 }}>
+                        {interetLabels[r.interet] || r.interet}
+                      </span>
+                    </div>
+                    <div style={{ marginTop: 10, fontSize: 13 }}>
+                      <div>Pharmacien : <b>{r.pharmacienPresent === "oui" ? (r.nomPharmacien || "Present") : "Absent"}</b></div>
+                      {r.produitsPresentes && r.produitsPresentes.length > 0 && (
+                        <div style={{ marginTop: 6 }}>
+                          {r.produitsPresentes.map(p => (
+                            <span key={p} style={{ background: "#ebf4ff", color: "#2b6cb0", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600, marginRight: 4, display: "inline-block", marginTop: 4 }}>{p}</span>
+                          ))}
+                        </div>
+                      )}
+                      {r.notes && <div style={{ marginTop: 6, color: "#718096" }}>{r.notes}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {showRapportModal && selectedPharmacie && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}>
+          <div style={{ background: "white", borderRadius: 20, padding: 28, width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto" }}>
+            <div style={{ fontWeight: 900, fontSize: 18, color: "#744210", marginBottom: 4 }}>Rapport de visite</div>
+            <div style={{ fontSize: 14, color: "#718096", marginBottom: 20 }}>{selectedPharmacie.pharmacie}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <label style={lS}>Pharmacien present ?</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {["oui", "non"].map(v => (
+                    <button key={v} onClick={() => setRapportForm(f => ({ ...f, pharmacienPresent: v }))}
+                      style={{ flex: 1, padding: "10px", border: "2px solid", borderColor: rapportForm.pharmacienPresent === v ? "#744210" : "#e2e8f0", borderRadius: 8, background: rapportForm.pharmacienPresent === v ? "#fffff0" : "white", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+                      {v === "oui" ? "Oui" : "Non"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {rapportForm.pharmacienPresent === "oui" && (
+                <div>
+                  <label style={lS}>Nom du pharmacien (optionnel)</label>
+                  <input placeholder="Dr. ..." value={rapportForm.nomPharmacien} onChange={e => setRapportForm(f => ({ ...f, nomPharmacien: e.target.value }))} style={iS} />
+                </div>
+              )}
+              <div>
+                <label style={{ ...lS, marginBottom: 8 }}>Produits presentes *</label>
+                <div style={{ maxHeight: 200, overflowY: "auto", background: "#f7fafc", borderRadius: 10, padding: 12, border: "1px solid #e2e8f0", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                  {PRODUITS.map(p => (
+                    <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11, padding: "4px 6px", borderRadius: 6, background: rapportForm.produitsPresentes.includes(p) ? "#fffff0" : "transparent", border: rapportForm.produitsPresentes.includes(p) ? "1px solid #d69e2e" : "1px solid transparent" }}>
+                      <input type="checkbox" checked={rapportForm.produitsPresentes.includes(p)} onChange={() => toggleProduit(p)} />
+                      <span>{p}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={lS}>Niveau d'interet</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {Object.entries(interetLabels).map(([val, label]) => (
+                    <button key={val} onClick={() => setRapportForm(f => ({ ...f, interet: val }))}
+                      style={{ padding: "10px", border: "2px solid", borderColor: rapportForm.interet === val ? interetColors[val] : "#e2e8f0", borderRadius: 8, background: rapportForm.interet === val ? interetColors[val] + "15" : "white", fontWeight: 700, cursor: "pointer", fontSize: 13, color: rapportForm.interet === val ? interetColors[val] : "#718096" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={lS}>Notes libres</label>
+                <textarea placeholder="Remarques, besoins..." value={rapportForm.notes} onChange={e => setRapportForm(f => ({ ...f, notes: e.target.value }))} style={{ ...iS, height: 70, resize: "vertical" }} />
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setShowRapportModal(false)} style={{ flex: 1, padding: "12px", background: "#edf2f7", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}>Annuler</button>
+                <button onClick={handleSubmitRapport} disabled={saving} style={{ flex: 2, padding: "12px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: saving ? "not-allowed" : "pointer" }}>
+                  {saving ? "Envoi..." : "Valider la visite"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════
+// PANEL ADMIN — GESTION DELEGUES
+// ═══════════════════════════════════════════════
+function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDeleteTournee, pharmacies }) {
+  const [view, setView] = useState("dashboard");
+  const [selectedDelegue, setSelectedDelegue] = useState(null);
+  const [formTournee, setFormTournee] = useState({ delegue: "", pharmacie: "", ville: "", adresse: "", date: new Date().toISOString().split("T")[0], notes: "" });
+  const [saving, setSaving] = useState(false);
+
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const statsByDelegue = DELEGUES.map(d => {
+    const mesT = tournees.filter(t => t.delegue === d.nom);
+    const mesR = rapportsVisite.filter(r => r.delegue === d.nom);
+    const today = mesT.filter(t => t.date === todayStr);
+    const visitees = today.filter(t => t.status === "visite").length;
+    const commandes = mesR.filter(r => r.interet === "commande").length;
+    const interesses = mesR.filter(r => r.interet === "interesse").length;
+    return { nom: d.nom, total: mesT.length, rapports: mesR.length, todayTotal: today.length, todayVisites: visitees, commandes, interesses };
+  });
+
+  const handleCreateTournee = async () => {
+    if (!formTournee.delegue || !formTournee.pharmacie || !formTournee.date) return alert("Remplissez tous les champs obligatoires.");
+    setSaving(true);
+    await onCreateTournee({ ...formTournee, status: "a_visiter" });
+    setFormTournee({ ...formTournee, pharmacie: "", adresse: "", notes: "" });
+    setSaving(false);
+    alert("Pharmacie ajoutee a la tournee !");
+  };
+
+  const interetColors = { froid: "#e53e3e", neutre: "#718096", interesse: "#d69e2e", commande: "#276749" };
+  const interetLabels = { froid: "Froid", neutre: "Neutre", interesse: "Interesse", commande: "Commande" };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        {[{ id: "dashboard", label: "Tableau de bord" }, { id: "assigner", label: "Assigner une tournee" }, { id: "rapports", label: "Rapports de visite" }].map(v => (
+          <button key={v.id} onClick={() => setView(v.id)} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: view === v.id ? "#744210" : "white", color: view === v.id ? "white" : "#4a5568", fontWeight: 700, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>{v.label}</button>
+        ))}
+      </div>
+
+      {view === "dashboard" && (
+        <>
+          <div style={{ fontWeight: 800, color: "#744210", fontSize: 15, marginBottom: 14 }}>Suivi des delegues — Aujourd'hui {todayStr}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
+            {statsByDelegue.map(d => (
+              <div key={d.nom} style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", border: "2px solid " + (d.todayVisites === d.todayTotal && d.todayTotal > 0 ? "#9ae6b4" : "#fefcbf") }}>
+                <div style={{ padding: "14px 18px", background: "#fffff0", borderBottom: "1px solid #fefcbf" }}>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: "#744210" }}>{d.nom}</div>
+                  {d.todayTotal > 0 && (
+                    <div style={{ marginTop: 6 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 4 }}>
+                        <span style={{ color: "#718096" }}>Tournee du jour</span>
+                        <span style={{ fontWeight: 700, color: "#276749" }}>{d.todayVisites}/{d.todayTotal} visites</span>
+                      </div>
+                      <div style={{ height: 6, background: "#e2e8f0", borderRadius: 10 }}>
+                        <div style={{ height: "100%", width: (d.todayTotal > 0 ? (d.todayVisites / d.todayTotal) * 100 : 0) + "%", background: "linear-gradient(90deg,#d69e2e,#276749)", borderRadius: 10 }} />
+                      </div>
+                    </div>
+                  )}
+                  {d.todayTotal === 0 && <div style={{ fontSize: 12, color: "#a0aec0", marginTop: 4 }}>Aucune tournee assignee aujourd'hui</div>}
+                </div>
+                <div style={{ padding: "12px 18px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {[
+                    { label: "Total tournees", val: d.total, color: "#2b6cb0" },
+                    { label: "Rapports", val: d.rapports, color: "#6b46c1" },
+                    { label: "Commandes", val: d.commandes, color: "#276749" },
+                    { label: "Interesses", val: d.interesses, color: "#d69e2e" },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: "#f7fafc", borderRadius: 8, padding: "8px 10px" }}>
+                      <div style={{ fontSize: 10, color: "#718096", textTransform: "uppercase", fontWeight: 700 }}>{s.label}</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: s.color, marginTop: 2 }}>{s.val}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: "10px 18px", borderTop: "1px solid #e2e8f0" }}>
+                  <button onClick={() => { setSelectedDelegue(d.nom); setView("rapports"); }} style={{ width: "100%", padding: "8px", background: "#fffff0", color: "#744210", border: "1px solid #f6e05e", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>
+                    Voir les visites
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 24, background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210", fontSize: 15 }}>Toutes les tournees assignees</div>
+            {tournees.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40, color: "#a0aec0" }}>Aucune tournee creee</div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead><tr style={{ background: "#f7fafc" }}>
+                    {["Date", "Delegue", "Pharmacie", "Ville", "Statut", ""].map(h => (
+                      <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#4a5568", fontWeight: 700, borderBottom: "2px solid #e2e8f0", fontSize: 12 }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {tournees.slice(0, 50).map((t, idx) => (
+                      <tr key={t.id} style={{ background: idx % 2 === 0 ? "white" : "#f7fafc" }}>
+                        <td style={{ ...tdS, fontWeight: 700 }}>{t.date}</td>
+                        <td style={{ ...tdS }}><span style={{ background: "#fffff0", color: "#744210", fontWeight: 700, padding: "3px 8px", borderRadius: 6, fontSize: 12 }}>{t.delegue}</span></td>
+                        <td style={{ ...tdS, fontWeight: 600 }}>{t.pharmacie}</td>
+                        <td style={{ ...tdS, color: "#718096" }}>{t.ville || "-"}</td>
+                        <td style={tdS}>
+                          <span style={{ background: t.status === "visite" ? "#f0fff4" : "#fffff0", color: t.status === "visite" ? "#276749" : "#d69e2e", padding: "3px 10px", borderRadius: 20, fontWeight: 700, fontSize: 11 }}>
+                            {t.status === "visite" ? "Visite" : "A visiter"}
+                          </span>
+                        </td>
+                        <td style={tdS}>
+                          <button onClick={() => onDeleteTournee(t.id)} style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 6, padding: "4px 8px", cursor: "pointer", color: "#e53e3e", fontSize: 11 }}>X</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {view === "assigner" && (
+        <div style={{ background: "white", borderRadius: 14, padding: 28, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", maxWidth: 560 }}>
+          <div style={{ fontWeight: 800, fontSize: 17, color: "#744210", marginBottom: 22 }}>Assigner une pharmacie a visiter</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <label style={lS}>Delegue medical *</label>
+              <select value={formTournee.delegue} onChange={e => setFormTournee({ ...formTournee, delegue: e.target.value })} style={iS}>
+                <option value="">-- Choisir un delegue --</option>
+                {DELEGUES.map(d => <option key={d.nom}>{d.nom}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lS}>Date de visite *</label>
+              <input type="date" value={formTournee.date} onChange={e => setFormTournee({ ...formTournee, date: e.target.value })} style={iS} />
+            </div>
+            <div>
+              <label style={lS}>Pharmacie a visiter *</label>
+              <input placeholder="Nom de la pharmacie" value={formTournee.pharmacie} onChange={e => setFormTournee({ ...formTournee, pharmacie: e.target.value })} style={iS} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={lS}>Ville / Zone *</label>
+                <select value={formTournee.ville} onChange={e => setFormTournee({ ...formTournee, ville: e.target.value })} style={iS}>
+                  <option value="">-- Zone --</option>
+                  {ZONES_CI.map(z => <option key={z}>{z}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lS}>Adresse (optionnel)</label>
+                <input placeholder="Rue, quartier..." value={formTournee.adresse} onChange={e => setFormTournee({ ...formTournee, adresse: e.target.value })} style={iS} />
+              </div>
+            </div>
+            <div>
+              <label style={lS}>Instructions pour le delegue (optionnel)</label>
+              <textarea placeholder="Insister sur tel produit, voir Dr X..." value={formTournee.notes} onChange={e => setFormTournee({ ...formTournee, notes: e.target.value })} style={{ ...iS, height: 70, resize: "vertical" }} />
+            </div>
+            <button onClick={handleCreateTournee} disabled={saving} style={{ padding: "13px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: saving ? "not-allowed" : "pointer" }}>
+              {saving ? "Enregistrement..." : "Ajouter a la tournee"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {view === "rapports" && (
+        <div>
+          <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ fontWeight: 800, fontSize: 15, color: "#744210", flex: 1 }}>Rapports de visite</div>
+            <select value={selectedDelegue || ""} onChange={e => setSelectedDelegue(e.target.value || null)} style={{ ...iS, width: "auto", minWidth: 180 }}>
+              <option value="">Tous les delegues</option>
+              {DELEGUES.map(d => <option key={d.nom}>{d.nom}</option>)}
+            </select>
+          </div>
+          {(() => {
+            const filtered = selectedDelegue ? rapportsVisite.filter(r => r.delegue === selectedDelegue) : rapportsVisite;
+            return filtered.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 50, background: "white", borderRadius: 14, color: "#a0aec0" }}>
+                <div style={{ fontSize: 44 }}>📭</div>
+                <div style={{ marginTop: 12 }}>Aucun rapport de visite</div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {filtered.slice(0, 50).map(r => (
+                  <div key={r.id} style={{ background: "white", borderRadius: 14, padding: "16px 20px", boxShadow: "0 2px 8px rgba(0,0,0,0.07)", borderLeft: "4px solid " + (interetColors[r.interet] || "#718096") }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 15, color: "#1a365d" }}>{r.pharmacie}</div>
+                        <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>
+                          {r.date} — <span style={{ color: "#744210", fontWeight: 700 }}>{r.delegue}</span>{r.ville ? " — " + r.ville : ""}
+                        </div>
+                      </div>
+                      <span style={{ background: (interetColors[r.interet] || "#718096") + "20", color: interetColors[r.interet] || "#718096", padding: "4px 12px", borderRadius: 20, fontWeight: 800, fontSize: 12 }}>
+                        {interetLabels[r.interet] || r.interet}
+                      </span>
+                    </div>
+                    <div style={{ marginTop: 10, fontSize: 13 }}>
+                      <div>Pharmacien : <b>{r.pharmacienPresent === "oui" ? (r.nomPharmacien || "Present") : "Absent"}</b></div>
+                      {r.produitsPresentes && r.produitsPresentes.length > 0 && (
+                        <div style={{ marginTop: 6 }}>
+                          {r.produitsPresentes.map(p => (
+                            <span key={p} style={{ background: "#ebf4ff", color: "#2b6cb0", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 600, marginRight: 4, display: "inline-block", marginTop: 4 }}>{p}</span>
+                          ))}
+                        </div>
+                      )}
+                      {r.notes && <div style={{ marginTop: 6, color: "#718096" }}>{r.notes}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════
 // INTERFACE STOCK PHARMACIES (Admin)
@@ -709,7 +1282,7 @@ function StockCommerciale({ pharmacies }) {
   );
 }
 
-function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, pharmacies, onAddPharmacie, onDeletePharmacie, onAddLivraison, onDeletePharmacieProduit }) {
+function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, pharmacies, onAddPharmacie, onDeletePharmacie, onAddLivraison, onDeletePharmacieProduit, tournees, rapportsVisite, onCreateTournee, onDeleteTournee }) {
   const [filterComm, setFilterComm] = useState("Toutes");
   const [filterDate, setFilterDate] = useState("");
   const [activeTab, setActiveTab] = useState("apercu"); // apercu | semaine | mois | produits | stats
@@ -810,12 +1383,13 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, 
   };
 
   const TABS = [
-    { id: "apercu",     label: "📊 Aperçu" },
-    { id: "semaine",    label: "📅 Cette semaine" },
-    { id: "mois",       label: "🗓 Ce mois" },
-    { id: "produits",   label: "🏆 Top produits" },
-    { id: "stats",      label: "📈 Statistiques" },
-    { id: "stocks",     label: "📦 Stocks pharmacies" },
+    { id: "apercu",     label: "Apercu" },
+    { id: "semaine",    label: "Cette semaine" },
+    { id: "mois",       label: "Ce mois" },
+    { id: "produits",   label: "Top produits" },
+    { id: "stats",      label: "Statistiques" },
+    { id: "stocks",     label: "Stocks pharmacies" },
+    { id: "delegues",   label: "Delegues Medicaux" },
   ];
 
   const RankingCard = ({ ranking, dataset, title }) => (
@@ -1060,6 +1634,17 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, 
               </>
             )}
 
+            {/* ── ONGLET DELEGUES ── */}
+            {activeTab === "delegues" && (
+              <DeleguesAdminPanel
+                tournees={tournees}
+                rapportsVisite={rapportsVisite}
+                onCreateTournee={onCreateTournee}
+                onDeleteTournee={onDeleteTournee}
+                pharmacies={pharmacies}
+              />
+            )}
+
             {/* ── ONGLET STOCKS ── */}
             {activeTab === "stocks" && (
               <StockInterface
@@ -1156,6 +1741,8 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [sales, setSales] = useState([]);
   const [pharmacies, setPharmacies] = useState([]);
+  const [tournees, setTournees] = useState([]);
+  const [rapportsVisite, setRapportsVisite] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Écoute ventes en temps réel
@@ -1250,6 +1837,26 @@ export default function App() {
     } catch(e) { alert("Erreur lors de la livraison."); }
   };
 
+  // Créer tournée pour délégué
+  const handleCreateTournee = async (data) => {
+    try { await addDoc(collection(db, "tournees"), { ...data, timestamp: new Date().toISOString() }); }
+    catch(e) { alert("Erreur creation tournee."); }
+  };
+
+  // Marquer pharmacie visitee + sauver rapport
+  const handleSubmitVisite = async (rapport) => {
+    try {
+      await addDoc(collection(db, "rapportsVisite"), rapport);
+      const t = tournees.find(t2 => t2.id === rapport.tourneeId);
+      if (t) await updateDoc(doc(db, "tournees", rapport.tourneeId), { status: "visite" });
+    } catch(e) { alert("Erreur enregistrement visite."); }
+  };
+
+  // Supprimer tournée
+  const handleDeleteTournee = async (id) => {
+    try { await deleteDoc(doc(db, "tournees", id)); } catch(e) { alert("Erreur suppression."); }
+  };
+
   // Supprimer un produit du stock d'une pharmacie
   const handleDeletePharmacieProduit = async (pharmId, produit) => {
     if (!window.confirm("Supprimer " + produit + " du stock ?")) return;
@@ -1265,5 +1872,7 @@ export default function App() {
   if (!user) return <LoginScreen onLogin={setUser} />;
   if (user.role === "commerciale")
     return <CommercialInterface user={user} sales={sales} pharmacies={pharmacies} onSubmit={handleNewSale} onLogout={() => setUser(null)} />;
-  return <AdminInterface sales={sales} onDelete={handleDelete} onResetAll={handleResetAll} onLogout={() => setUser(null)} user={user} loading={loading} pharmacies={pharmacies} onAddPharmacie={handleAddPharmacie} onDeletePharmacie={handleDeletePharmacie} onAddLivraison={handleAddLivraison} onDeletePharmacieProduit={handleDeletePharmacieProduit} />;
+  if (user.role === "delegue")
+    return <DelegueInterface user={user} tournees={tournees} rapportsVisite={rapportsVisite} onSubmitVisite={handleSubmitVisite} onLogout={() => setUser(null)} />;
+  return <AdminInterface sales={sales} onDelete={handleDelete} onResetAll={handleResetAll} onLogout={() => setUser(null)} user={user} loading={loading} pharmacies={pharmacies} onAddPharmacie={handleAddPharmacie} onDeletePharmacie={handleDeletePharmacie} onAddLivraison={handleAddLivraison} onDeletePharmacieProduit={handleDeletePharmacieProduit} tournees={tournees} rapportsVisite={rapportsVisite} onCreateTournee={handleCreateTournee} onDeleteTournee={handleDeleteTournee} />;
 }
