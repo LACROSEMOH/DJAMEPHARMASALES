@@ -818,28 +818,76 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
     return { nom: d.nom, total: mesT.length, rapports: mesR.length, todayTotal: today.length, todayVisites: visitees, commandes, interesses };
   });
 
-  // Recherche Google Places via notre backend proxy
+  // Recherche via OpenStreetMap Overpass API — gratuit, fonctionne depuis le navigateur
   const searchPlaces = async () => {
     if (!searchInput.trim()) return alert("Entrez le nom d'une zone ou ville.");
     setLoadingPlaces(true);
     setPlacesResults([]);
     try {
-      const query = "pharmacie " + searchInput + " Cote d'Ivoire";
-      const url = "https://maps.googleapis.com/maps/api/place/textsearch/json?query=" + encodeURIComponent(query) + "&key=" + GOOGLE_MAPS_KEY + "&language=fr";
-      // Use a CORS proxy since browser can't call Places API directly
-      const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
-      const res = await fetch(proxyUrl);
+      // Step 1: get coordinates of the zone via Nominatim
+      const geoUrl = "https://nominatim.openstreetmap.org/search?q=" + encodeURIComponent(searchInput + " Cote d'Ivoire") + "&format=json&limit=1";
+      const geoRes = await fetch(geoUrl, { headers: { "Accept-Language": "fr" } });
+      const geoData = await geoRes.json();
+
+      if (!geoData || geoData.length === 0) {
+        alert("Zone introuvable. Essayez un nom plus precis (ex: Cocody Abidjan).");
+        setLoadingPlaces(false);
+        return;
+      }
+
+      const { lat, lon, boundingbox } = geoData[0];
+      // Step 2: search pharmacies in that area via Overpass
+      const delta = 0.05; // ~5km radius
+      const south = parseFloat(lat) - delta;
+      const north = parseFloat(lat) + delta;
+      const west = parseFloat(lon) - delta;
+      const east = parseFloat(lon) + delta;
+      const overpassQuery = "[out:json][timeout:25];(node["amenity"="pharmacy"](" + south + "," + west + "," + north + "," + east + ");way["amenity"="pharmacy"](" + south + "," + west + "," + north + "," + east + "););out center 30;";
+      const overpassUrl = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(overpassQuery);
+      const res = await fetch(overpassUrl);
       const data = await res.json();
-      if (data.results && data.results.length > 0) {
-        setPlacesResults(data.results.slice(0, 15));
+
+      if (data.elements && data.elements.length > 0) {
+        const results = data.elements.map(el => ({
+          place_id: el.id.toString(),
+          name: el.tags.name || "Pharmacie sans nom",
+          formatted_address: [el.tags["addr:street"], el.tags["addr:city"] || searchInput].filter(Boolean).join(", "),
+          lat: el.lat || el.center?.lat,
+          lon: el.lon || el.center?.lon,
+          phone: el.tags.phone || el.tags["contact:phone"] || null,
+          opening_hours: el.tags.opening_hours || null,
+        })).filter(p => p.name !== "Pharmacie sans nom" || true).sort((a, b) => a.name.localeCompare(b.name));
+        setPlacesResults(results.slice(0, 30));
       } else {
+        // Fallback: show message but still allow manual entry
         setPlacesResults([]);
-        alert("Aucune pharmacie trouvee pour cette zone. Essayez un autre nom.");
+        alert("Aucune pharmacie trouvee dans la base OpenStreetMap pour cette zone. Vous pouvez ajouter manuellement via le bouton ci-dessous.");
       }
     } catch(e) {
-      alert("Erreur de recherche. Verifiez votre connexion.");
+      console.error(e);
+      alert("Erreur de connexion. Verifiez votre internet et reessayez.");
     }
     setLoadingPlaces(false);
+  };
+
+  const handleSaveManuelle = async () => {
+    if (!searchInput.trim()) return alert("Entrez d'abord une zone dans le champ de recherche.");
+    const nom = window.prompt("Nom de la pharmacie :");
+    if (!nom) return;
+    const adresse = window.prompt("Adresse (optionnel) :") || "";
+    try {
+      const already = savedPharmacies.find(p => p.nom.toLowerCase() === nom.toLowerCase());
+      if (already) { alert("Cette pharmacie est deja dans votre liste !"); return; }
+      await addDoc(collection(db, "pharmaciesVisite"), {
+        nom: nom.trim(),
+        adresse: adresse.trim(),
+        ville: searchInput,
+        placeId: "manual_" + Date.now(),
+        lat: null, lon: null,
+        savedAt: new Date().toISOString(),
+      });
+      alert("Pharmacie ajoutee !");
+    } catch(e) { alert("Erreur lors de l'ajout."); }
   };
 
   const handleSavePharmacie = async (place) => {
@@ -851,8 +899,8 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
         adresse: place.formatted_address || "",
         ville: searchInput,
         placeId: place.place_id,
-        lat: place.geometry?.location?.lat || null,
-        lng: place.geometry?.location?.lng || null,
+        lat: place.lat || null,
+        lng: place.lon || null,
         savedAt: new Date().toISOString(),
       });
       alert("Pharmacie ajoutee a votre liste !");
@@ -1011,6 +1059,10 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
           <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 20 }}>
             <div style={{ fontWeight: 800, color: "#744210", fontSize: 16, marginBottom: 6 }}>Rechercher des pharmacies</div>
             <div style={{ fontSize: 13, color: "#718096", marginBottom: 16 }}>Entrez une ville ou un quartier — les pharmacies trouvees peuvent etre ajoutees a votre liste</div>
+            <div style={{ background: "#fffff0", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: "#744210", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>Pharmacie non trouvee dans les resultats ? Ajoutez-la manuellement.</span>
+              <button onClick={handleSaveManuelle} style={{ padding: "6px 14px", background: "#744210", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 700, fontSize: 12, whiteSpace: "nowrap", marginLeft: 12 }}>+ Ajout manuel</button>
+            </div>
             <div style={{ display: "flex", gap: 10 }}>
               <input
                 placeholder="Ex: Cocody, Plateau, Bouake, Yopougon..."
@@ -1043,10 +1095,12 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
                         {place.rating && <div style={{ fontSize: 11, color: "#d69e2e", marginTop: 2 }}>{"⭐".repeat(Math.round(place.rating))} {place.rating}/5</div>}
                       </div>
                       <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                        <a href={"https://www.google.com/maps/place/?q=place_id:" + place.place_id} target="_blank" rel="noreferrer"
-                          style={{ padding: "7px 12px", background: "#ebf4ff", color: "#2b6cb0", borderRadius: 8, fontWeight: 600, fontSize: 12, textDecoration: "none" }}>
-                          Carte
-                        </a>
+                        {place.lat && (
+                          <a href={"https://www.google.com/maps?q=" + place.lat + "," + place.lon} target="_blank" rel="noreferrer"
+                            style={{ padding: "7px 12px", background: "#ebf4ff", color: "#2b6cb0", borderRadius: 8, fontWeight: 600, fontSize: 12, textDecoration: "none" }}>
+                            Voir carte
+                          </a>
+                        )}
                         {alreadySaved ? (
                           <span style={{ padding: "7px 12px", background: "#f0fff4", color: "#276749", borderRadius: 8, fontWeight: 700, fontSize: 12 }}>Deja sauvegardee</span>
                         ) : (
