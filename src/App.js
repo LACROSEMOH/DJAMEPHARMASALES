@@ -2702,6 +2702,38 @@ function AnimationsAdmin({ sales }) {
         </div>
       )}
 
+      {/* ── PROGRAMMES FIXES ANNE & AICHA ── */}
+      <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginTop: 20 }}>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210", fontSize: 15 }}>
+          📋 Programmes fixes hebdomadaires — ANNE N'GORAN & AICHA DIALLO
+        </div>
+        <div style={{ padding: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          {Object.entries(PROGRAMMES_FIXES).map(([comm, prog]) => (
+            <div key={comm} style={{ background: "#fffff0", borderRadius: 12, border: "1.5px solid #f6e05e", overflow: "hidden" }}>
+              <div style={{ padding: "10px 16px", background: "#744210", color: "white", fontWeight: 800, fontSize: 13 }}>
+                {comm}
+              </div>
+              <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                {["Lundi","Mardi","Mercredi","Jeudi","Vendredi"].map(jour => {
+                  const items = prog.filter(p => p.jour === jour);
+                  if (items.length === 0) return null;
+                  return items.map((p, i) => (
+                    <div key={jour+i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "6px 10px", background: "white", borderRadius: 8, border: "1px solid #fefcbf" }}>
+                      <span style={{ fontWeight: 800, fontSize: 12, color: "#2b6cb0", minWidth: 72, flexShrink: 0 }}>{jour}</span>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: "#1a365d" }}>🏥 {p.pharmacie}</div>
+                        {p.adresse && <div style={{ fontSize: 11, color: "#718096" }}>📍 {p.adresse}</div>}
+                        {p.note && <div style={{ fontSize: 11, color: "#744210", fontWeight: 700 }}>⚡ {p.note}</div>}
+                      </div>
+                    </div>
+                  ));
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* ── ASSIGNER ── */}
       {view === "assigner" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "flex-start" }}>
