@@ -39,8 +39,8 @@ const ADMINS = [
 const DELEGUES = [
   { nom: "OUATTARA YASMINE", pass: "OUDJAME11" },
   { nom: "DOUCOURE ASSITA", pass: "DOUDJAME12" },
-  { nom: "DELEGUE 3", pass: "DELEG03" },
-  { nom: "DELEGUE 4", pass: "DELEG04" },
+  { nom: "FUTUR DELEGUE1", pass: "DEDJAME13" },
+  { nom: "FUTUR DELEGUE2", pass: "DEDJAME14" },
 ];
 
 // Clé Google Maps — À remplacer par votre vraie clé
