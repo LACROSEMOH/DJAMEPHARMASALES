@@ -305,87 +305,87 @@ function LoginScreen({ onLogin }) {
 // COMPOSANT PROGRAMME ANIMATION
 // ═══════════════════════════════════════════════
 function ProgrammeAnimation({ user }) {
-  const programme = getProgrammeCommerciale(user.nom);
   const jourAujourdhui = getJourSemaine();
-  const joursHebdo = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi"];
+  const JOURS = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+  const [anims, setAnims] = useState([]);
+  const [semaineSel, setSemaineSel] = useState("");
 
-  const [animsFirebase, setAnimsFirebase] = useState([]);
-
-  const getSemaineLundi = () => {
+  const getSemaineLundi = (offset = 0) => {
     const d = new Date();
     const day = d.getDay() || 7;
-    d.setDate(d.getDate() - day + 1);
+    d.setDate(d.getDate() - day + 1 + offset * 7);
     return d.toISOString().split("T")[0];
   };
 
+  const formatSemaine = (lundi) => {
+    if (!lundi) return "";
+    const d = new Date(lundi + "T00:00:00");
+    const fin = new Date(lundi + "T00:00:00");
+    fin.setDate(fin.getDate() + 4);
+    return "Semaine du " + d.toLocaleDateString("fr-FR",{day:"numeric",month:"long"}) + " au " + fin.toLocaleDateString("fr-FR",{day:"numeric",month:"long"});
+  };
+
   useEffect(() => {
+    setSemaineSel(getSemaineLundi(0));
     const unsub = onSnapshot(collection(db, "animationsComm"), (snap) => {
-      const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const mySemaine = getSemaineLundi();
-      setAnimsFirebase(all.filter(a => a.commerciale === user.nom && a.semaine === mySemaine));
+      setAnims(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(a => a.commerciale === user.nom));
     });
     return () => unsub();
   }, [user.nom]);
 
-  // Séparer hebdo et ponctuel
-  const hebdo = programme.filter(p => p.recurrence === "hebdo" || p.recurrence === "le 15 du mois");
-  const ponctuel = programme.filter(p => p.recurrence !== "hebdo" && p.recurrence !== "le 15 du mois");
-
-  const couleurJour = (jour) => {
-    if (jour === jourAujourdhui) return { bg: "#fffff0", border: "#d69e2e", dot: "#d69e2e" };
-    return { bg: "white", border: "#e2e8f0", dot: "#cbd5e0" };
-  };
-
-  if (programme.length === 0) return (
-    <div style={{ background: "white", borderRadius: 14, padding: 40, textAlign: "center", color: "#a0aec0", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
-      <div style={{ fontSize: 40 }}>📅</div>
-      <div style={{ marginTop: 12, fontWeight: 700 }}>Aucun programme assigne</div>
-      <div style={{ fontSize: 13, marginTop: 6 }}>Contactez votre administrateur</div>
-    </div>
-  );
+  const animsSemaine = anims.filter(a => a.semaine === semaineSel);
+  const curLundi = getSemaineLundi(0);
 
   return (
     <div>
-      {/* Aujourd'hui */}
-      {hebdo.filter(p => p.jour === jourAujourdhui).length > 0 && (
-        <div style={{ background: "linear-gradient(135deg,#744210,#d69e2e)", borderRadius: 14, padding: 20, marginBottom: 16, color: "white" }}>
-          <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 4 }}>📍 Aujourd'hui — {jourAujourdhui}</div>
-          {hebdo.filter(p => p.jour === jourAujourdhui).map((p, i) => (
-            <div key={i} style={{ background: "rgba(255,255,255,0.2)", borderRadius: 10, padding: "12px 16px", marginTop: 8 }}>
-              <div style={{ fontWeight: 800, fontSize: 15 }}>{p.pharmacie}</div>
-              {p.adresse && <div style={{ fontSize: 13, opacity: 0.9, marginTop: 2 }}>📍 {p.adresse}</div>}
-              {p.recurrence === "le 15 du mois" && <div style={{ fontSize: 12, marginTop: 4, background: "rgba(255,255,255,0.3)", borderRadius: 6, padding: "2px 8px", display: "inline-block" }}>Chaque 15 du mois</div>}
+      <div style={{ background: "white", borderRadius: 14, padding: "12px 16px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+        <button onClick={() => setSemaineSel(getSemaineLundi(-1))} style={{ padding: "7px 12px", background: "#f7fafc", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>←</button>
+        <div style={{ flex: 1, textAlign: "center", fontWeight: 800, color: "#744210", fontSize: 13 }}>{formatSemaine(semaineSel)}</div>
+        <button onClick={() => setSemaineSel(curLundi)} style={{ padding: "7px 10px", background: "#fffff0", border: "1px solid #d69e2e", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 11, color: "#744210" }}>Auj.</button>
+        <button onClick={() => setSemaineSel(getSemaineLundi(1))} style={{ padding: "7px 12px", background: "#f7fafc", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>→</button>
+      </div>
+      {semaineSel === curLundi && animsSemaine.filter(a => a.jour === jourAujourdhui).length > 0 && (
+        <div style={{ background: "linear-gradient(135deg,#744210,#d69e2e)", borderRadius: 14, padding: 18, marginBottom: 14, color: "white" }}>
+          <div style={{ fontWeight: 900, fontSize: 15, marginBottom: 8 }}>📍 Aujourd'hui — {jourAujourdhui}</div>
+          {animsSemaine.filter(a => a.jour === jourAujourdhui).map(a => (
+            <div key={a.id} style={{ background: "rgba(255,255,255,0.2)", borderRadius: 10, padding: "10px 14px", marginTop: 6 }}>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>🏥 {a.pharmacie}</div>
+              {a.adresse && <div style={{ fontSize: 12, opacity: 0.9, marginTop: 2 }}>📍 {a.adresse}</div>}
+              {a.notes && <div style={{ fontSize: 12, marginTop: 4, opacity: 0.85, fontStyle: "italic" }}>{a.notes}</div>}
             </div>
           ))}
         </div>
       )}
-
-      {/* Animations assignees cette semaine par l'admin */}
-      {animsFirebase.length > 0 && (
-        <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 16 }}>
-          <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#2b6cb0", fontSize: 15 }}>
-            📌 Animations assignées cette semaine
+      {animsSemaine.length === 0 ? (
+        <div style={{ background: "white", borderRadius: 14, padding: 40, textAlign: "center", color: "#a0aec0", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+          <div style={{ fontSize: 40 }}>📅</div>
+          <div style={{ marginTop: 12, fontWeight: 700 }}>Aucune animation pour cette semaine</div>
+          <div style={{ fontSize: 13, marginTop: 6 }}>Votre admin vous assignera des pharmacies</div>
+        </div>
+      ) : (
+        <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+          <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210", fontSize: 14 }}>
+            {animsSemaine.length} animation(s) cette semaine
           </div>
-          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-            {["Lundi","Mardi","Mercredi","Jeudi","Vendredi"].map(jour => {
-              const anims = animsFirebase.filter(a => a.jour === jour);
-              if (anims.length === 0) return null;
-              const isToday = jour === jourAujourdhui;
-              return anims.map((a, i) => (
-                <div key={a.id} style={{ borderRadius: 12, border: "2px solid", borderColor: isToday ? "#d69e2e" : "#bee3f8", background: isToday ? "#fffff0" : "#ebf4ff", padding: "12px 16px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontWeight: 800, fontSize: 12, color: isToday ? "#744210" : "#2b6cb0" }}>{jour}{isToday ? " — Aujourd'hui" : ""}</span>
-                  </div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: "#1a365d", marginTop: 4 }}>🏥 {a.pharmacie}</div>
+          <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+            {JOURS.map(jour => animsSemaine.filter(a => a.jour === jour).map(a => {
+              const isToday = jour === jourAujourdhui && semaineSel === curLundi;
+              return (
+                <div key={a.id} style={{ borderRadius: 12, border: "2px solid", borderColor: isToday ? "#d69e2e" : "#e2e8f0", background: isToday ? "#fffff0" : "#f7fafc", padding: "12px 16px" }}>
+                  <span style={{ fontWeight: 800, fontSize: 11, color: isToday ? "#744210" : "#2b6cb0", background: isToday ? "#fefcbf" : "#ebf4ff", padding: "2px 10px", borderRadius: 20 }}>
+                    {jour}{isToday ? " ★ Aujourd'hui" : ""}
+                  </span>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#1a365d", marginTop: 6 }}>🏥 {a.pharmacie}</div>
                   {a.adresse && <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>📍 {a.adresse}</div>}
                   {a.notes && <div style={{ fontSize: 12, color: "#744210", marginTop: 4, fontStyle: "italic" }}>{a.notes}</div>}
                 </div>
-              ));
-            })}
+              );
+            }))}
           </div>
         </div>
       )}
-
+    </div>
+  );
 }
 
 // ═══════════════════════════════════════════════
