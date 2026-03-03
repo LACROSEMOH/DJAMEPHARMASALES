@@ -38,7 +38,7 @@ const ADMINS = [
 // ═══════════════════════════════════════════════
 const DELEGUES = [
   { nom: "OUATTARA YASMINE",  pass: "OUDJAME11" },
-  { nom: "DOUCOURE ASSITA",   pass: "OUDJAME12" },
+  { nom: "DOUCOURE ASSITA",   pass: "DOUDJAME12" },
   { nom: "DELEGUE 3",         pass: "DELDJAME13" },
   { nom: "DELEGUE 4",         pass: "DELDJAME14" },
 ];
@@ -50,7 +50,7 @@ const ZONES_CI = [
   "Abidjan - Plateau", "Abidjan - Cocody", "Abidjan - Yopougon",
   "Abidjan - Abobo", "Abidjan - Adjamé", "Abidjan - Marcory",
   "Abidjan - Koumassi", "Abidjan - Port-Bouët", "Abidjan - Treichville",
-  "Abidjan - Attécoubé", "Abidjan - Bingerville",
+  "Abidjan - Attécoubé", "Abidjan - Bingerville", "Abidjan - Angré"
   "Bouaké", "Yamoussoukro", "San-Pédro", "Daloa", "Korhogo",
   "Man", "Abengourou", "Divo", "Gagnoa", "Soubré", "Bondoukou",
   "Odienné", "Touba", "Ferkessédougou", "Katiola", "Séguéla",
