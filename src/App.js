@@ -824,48 +824,38 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
     setLoadingPlaces(true);
     setPlacesResults([]);
     try {
-      // Step 1: get coordinates of the zone via Nominatim
-      const geoUrl = "https://nominatim.openstreetmap.org/search?q=" + encodeURIComponent(searchInput + " Cote d'Ivoire") + "&format=json&limit=1";
-      const geoRes = await fetch(geoUrl, { headers: { "Accept-Language": "fr" } });
-      const geoData = await geoRes.json();
-
-      if (!geoData || geoData.length === 0) {
-        alert("Zone introuvable. Essayez un nom plus precis (ex: Cocody Abidjan).");
-        setLoadingPlaces(false);
-        return;
-      }
-
-      const { lat, lon, boundingbox } = geoData[0];
-      // Step 2: search pharmacies in that area via Overpass
-      const delta = 0.05; // ~5km radius
-      const south = parseFloat(lat) - delta;
-      const north = parseFloat(lat) + delta;
-      const west = parseFloat(lon) - delta;
-      const east = parseFloat(lon) + delta;
-      const overpassQuery = "[out:json][timeout:25];(node["amenity"="pharmacy"](" + south + "," + west + "," + north + "," + east + ");way["amenity"="pharmacy"](" + south + "," + west + "," + north + "," + east + "););out center 30;";
-      const overpassUrl = "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(overpassQuery);
-      const res = await fetch(overpassUrl);
-      const data = await res.json();
-
-      if (data.elements && data.elements.length > 0) {
-        const results = data.elements.map(el => ({
-          place_id: el.id.toString(),
-          name: el.tags.name || "Pharmacie sans nom",
-          formatted_address: [el.tags["addr:street"], el.tags["addr:city"] || searchInput].filter(Boolean).join(", "),
-          lat: el.lat || el.center?.lat,
-          lon: el.lon || el.center?.lon,
-          phone: el.tags.phone || el.tags["contact:phone"] || null,
-          opening_hours: el.tags.opening_hours || null,
-        })).filter(p => p.name !== "Pharmacie sans nom" || true).sort((a, b) => a.name.localeCompare(b.name));
-        setPlacesResults(results.slice(0, 30));
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: "Tu es un expert en geographie de la Cote d'Ivoire. Reponds UNIQUEMENT avec un tableau JSON valide, sans texte avant ou apres. Format strict: [{"nom":"...","adresse":"..."}]",
+          messages: [{
+            role: "user",
+            content: "Liste 15 pharmacies reelles et connues situees a " + searchInput + " en Cote d'Ivoire. Donne le nom exact et l'adresse ou quartier. JSON uniquement."
+          }]
+        })
+      });
+      const data = await response.json();
+      const text = data.content && data.content[0] ? data.content[0].text : "[]";
+      const clean = text.replace(/```json|```/g, "").trim();
+      const list = JSON.parse(clean);
+      if (list && list.length > 0) {
+        setPlacesResults(list.map((p, i) => ({
+          place_id: "ai_" + i + "_" + Date.now(),
+          name: p.nom,
+          formatted_address: p.adresse || searchInput,
+          lat: null,
+          lon: null,
+          phone: p.telephone || null,
+        })));
       } else {
-        // Fallback: show message but still allow manual entry
-        setPlacesResults([]);
-        alert("Aucune pharmacie trouvee dans la base OpenStreetMap pour cette zone. Vous pouvez ajouter manuellement via le bouton ci-dessous.");
+        alert("Aucune pharmacie trouvee pour cette zone.");
       }
     } catch(e) {
       console.error(e);
-      alert("Erreur de connexion. Verifiez votre internet et reessayez.");
+      alert("Erreur de recherche. Reessayez.");
     }
     setLoadingPlaces(false);
   };
