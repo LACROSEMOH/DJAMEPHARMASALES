@@ -331,7 +331,12 @@ function ProgrammeAnimation({ user }) {
   const [anims, setAnims] = useState([]);
   const [semaineSel, setSemaineSel] = useState("");
 
-  const programmeFixe = PROGRAMMES_FIXES[user.nom] || [];
+  const programmeFixe = (() => {
+    const direct = PROGRAMMES_FIXES[user.nom];
+    if (direct) return direct;
+    const key = Object.keys(PROGRAMMES_FIXES).find(k => k.toLowerCase().trim() === (user.nom||"").toLowerCase().trim());
+    return key ? PROGRAMMES_FIXES[key] : [];
+  })();
 
   const getSemaineLundi = (offset = 0) => {
     const d = new Date();
