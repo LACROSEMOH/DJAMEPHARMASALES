@@ -1,3 +1,4 @@
+// DjamePharmaSales v3.5 — 202603030032
 import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
@@ -819,45 +820,60 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
   });
 
   // Recherche via OpenStreetMap Overpass API — gratuit, fonctionne depuis le navigateur
-  const searchPlaces = async () => {
-    if (!searchInput.trim()) return alert("Entrez le nom d'une zone ou ville.");
-    setLoadingPlaces(true);
-    setPlacesResults([]);
-    try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: "Tu es un expert en geographie de Cote d Ivoire. Reponds UNIQUEMENT avec un tableau JSON valide sans texte avant ou apres. Format: [{nom: string, adresse: string}]",
-          messages: [{
-            role: "user",
-            content: "Liste 15 pharmacies reelles situees a " + searchInput + " en Cote d Ivoire. Donne nom et adresse. JSON uniquement."
-          }]
-        })
-      });
-      const data = await response.json();
-      const text = data.content && data.content[0] ? data.content[0].text : "[]";
-      const clean = text.replace(/```json|```/g, "").trim();
-      const list = JSON.parse(clean);
-      if (list && list.length > 0) {
-        setPlacesResults(list.map((p, i) => ({
-          place_id: "ai_" + i + "_" + Date.now(),
-          name: p.nom,
-          formatted_address: p.adresse || searchInput,
-          lat: null,
-          lon: null,
-          phone: p.telephone || null,
-        })));
-      } else {
-        alert("Aucune pharmacie trouvee pour cette zone.");
-      }
-    } catch(e) {
-      console.error(e);
-      alert("Erreur de recherche. Reessayez.");
+  const PHARMACIES_CI = {
+    "Plateau": ["Pharmacie du Plateau","Pharmacie Colombe","Pharmacie de la Paix","Pharmacie Sainte Marie","Pharmacie Centrale du Plateau","Pharmacie du Commerce","Pharmacie de la Cathédrale","Pharmacie Nationale","Pharmacie du Trésor"],
+    "Cocody": ["Pharmacie Sainte Famille","Pharmacie des 2 Plateaux","Pharmacie Angré","Pharmacie de la Riviera","Pharmacie Bonoumin","Pharmacie du CHU de Cocody","Pharmacie Danga","Pharmacie Attoban","Pharmacie Mermoz","Pharmacie Vallon","Pharmacie Blockauss","Pharmacie Riviera Palmeraie","Pharmacie Golf","Pharmacie Nouvelle Cocody"],
+    "Yopougon": ["Pharmacie Yopougon Maroc","Pharmacie Selmer","Pharmacie Doukouré","Pharmacie Siporex","Pharmacie Wassakara","Pharmacie Kouté","Pharmacie Niangon","Pharmacie Yopougon Centre","Pharmacie Ficgayo","Pharmacie Toits Rouges","Pharmacie Ananeraie"],
+    "Adjamé": ["Pharmacie Adjamé 220 Logements","Pharmacie de la Gare","Pharmacie Fraternité","Pharmacie Liberté","Pharmacie du Marché","Pharmacie Petro Ivoire","Pharmacie Williamsville","Pharmacie Avocatier"],
+    "Abobo": ["Pharmacie Abobo Gare","Pharmacie Abobo Baoulé","Pharmacie Derrière Rails","Pharmacie PK 18","Pharmacie Abobo Centre","Pharmacie Kennedy","Pharmacie Clouetcha","Pharmacie Avocatier Abobo"],
+    "Marcory": ["Pharmacie Marcory Résidentiel","Pharmacie Zone 4","Pharmacie Anoumabo","Pharmacie Biétry","Pharmacie Koumassi Express","Pharmacie Remblais"],
+    "Koumassi": ["Pharmacie Koumassi Centre","Pharmacie Grand Carrefour","Pharmacie Sébroko","Pharmacie Port-Bouët","Pharmacie Résidentiel Koumassi"],
+    "Treichville": ["Pharmacie Treichville","Pharmacie du Port","Pharmacie Biafra","Pharmacie du Stade","Pharmacie Gabriel Dadié"],
+    "Port-Bouët": ["Pharmacie Aéroport","Pharmacie Vridi","Pharmacie Port-Bouët Centre","Pharmacie Gonzagueville"],
+    "Attécoubé": ["Pharmacie Attécoubé Centre","Pharmacie Williamsville","Pharmacie Banco"],
+    "Bingerville": ["Pharmacie de Bingerville","Pharmacie Sainte Anne Bingerville"],
+    "Bouaké": ["Pharmacie Centrale Bouaké","Pharmacie de la Paix Bouaké","Pharmacie du CHR Bouaké","Pharmacie Koko","Pharmacie Air France Bouaké","Pharmacie Commerce Bouaké","Pharmacie Kennedy Bouaké","Pharmacie Nimbo","Pharmacie Bromakoté"],
+    "Yamoussoukro": ["Pharmacie Centrale Yamoussoukro","Pharmacie du Lac","Pharmacie INPHB","Pharmacie Dimbokro","Pharmacie Fécipado","Pharmacie Morofé"],
+    "San-Pédro": ["Pharmacie Centrale San-Pédro","Pharmacie du Port San-Pédro","Pharmacie Balmer","Pharmacie Bardot"],
+    "Daloa": ["Pharmacie Centrale Daloa","Pharmacie de la Paix Daloa","Pharmacie Commerce Daloa","Pharmacie Zoukougbeu"],
+    "Korhogo": ["Pharmacie Centrale Korhogo","Pharmacie du Nord","Pharmacie Soba","Pharmacie Commerce Korhogo"],
+    "Man": ["Pharmacie Centrale Man","Pharmacie de la Paix Man","Pharmacie Danané"],
+    "Abengourou": ["Pharmacie Centrale Abengourou","Pharmacie du Moronou","Pharmacie Agnibilékrou"],
+    "Divo": ["Pharmacie Centrale Divo","Pharmacie Guitry"],
+    "Gagnoa": ["Pharmacie Centrale Gagnoa","Pharmacie de la Paix Gagnoa","Pharmacie Ouragahio"],
+    "Soubré": ["Pharmacie Centrale Soubré","Pharmacie Buyo"],
+    "Bondoukou": ["Pharmacie Centrale Bondoukou","Pharmacie Tanda"],
+    "Ferkessédougou": ["Pharmacie Centrale Ferkessédougou","Pharmacie Kong"],
+    "Odienné": ["Pharmacie Centrale Odienné","Pharmacie Madinani"],
+    "Séguéla": ["Pharmacie Centrale Séguéla","Pharmacie Vavoua"],
+    "Katiola": ["Pharmacie Centrale Katiola","Pharmacie Niakaramandougou"],
+    "Abidjan - Plateau": ["Pharmacie du Plateau","Pharmacie Colombe","Pharmacie de la Paix","Pharmacie Sainte Marie","Pharmacie Centrale du Plateau","Pharmacie du Commerce","Pharmacie de la Cathédrale","Pharmacie Nationale"],
+    "Abidjan - Cocody": ["Pharmacie Sainte Famille","Pharmacie des 2 Plateaux","Pharmacie Angré","Pharmacie de la Riviera","Pharmacie Bonoumin","Pharmacie du CHU de Cocody","Pharmacie Danga","Pharmacie Attoban","Pharmacie Mermoz","Pharmacie Vallon","Pharmacie Golf"],
+    "Abidjan - Yopougon": ["Pharmacie Yopougon Maroc","Pharmacie Selmer","Pharmacie Doukouré","Pharmacie Siporex","Pharmacie Wassakara","Pharmacie Niangon","Pharmacie Yopougon Centre","Pharmacie Toits Rouges"],
+    "Abidjan - Abobo": ["Pharmacie Abobo Gare","Pharmacie Abobo Baoulé","Pharmacie Derrière Rails","Pharmacie PK 18","Pharmacie Abobo Centre","Pharmacie Kennedy","Pharmacie Clouetcha"],
+    "Abidjan - Adjamé": ["Pharmacie Adjamé 220 Logements","Pharmacie de la Gare","Pharmacie Fraternité","Pharmacie Liberté","Pharmacie du Marché","Pharmacie Williamsville"],
+    "Abidjan - Marcory": ["Pharmacie Marcory Résidentiel","Pharmacie Zone 4","Pharmacie Anoumabo","Pharmacie Biétry","Pharmacie Remblais"],
+    "Abidjan - Treichville": ["Pharmacie Treichville","Pharmacie du Port","Pharmacie Biafra","Pharmacie du Stade"],
+    "Abidjan - Koumassi": ["Pharmacie Koumassi Centre","Pharmacie Grand Carrefour","Pharmacie Sébroko"],
+    "Abidjan - Port-Bouët": ["Pharmacie Aéroport","Pharmacie Vridi","Pharmacie Port-Bouët Centre"],
+    "Abidjan - Attécoubé": ["Pharmacie Attécoubé Centre","Pharmacie Williamsville"],
+    "Abidjan - Bingerville": ["Pharmacie de Bingerville","Pharmacie Sainte Anne Bingerville"],
+  };
+
+  const searchPlaces = () => {
+    if (!searchInput.trim()) return alert("Entrez le nom d une zone ou ville.");
+    const key = Object.keys(PHARMACIES_CI).find(k => k.toLowerCase().includes(searchInput.toLowerCase()) || searchInput.toLowerCase().includes(k.toLowerCase().split(" - ").pop().toLowerCase()));
+    const list = key ? PHARMACIES_CI[key] : Object.values(PHARMACIES_CI).flat().filter(n => n.toLowerCase().includes(searchInput.toLowerCase()));
+    if (list.length > 0) {
+      setPlacesResults(list.map((nom, i) => ({
+        place_id: "db_" + i + "_" + Date.now(),
+        name: nom,
+        formatted_address: searchInput,
+        lat: null, lon: null, phone: null,
+      })));
+    } else {
+      alert("Zone non trouvee. Essayez: Cocody, Plateau, Yopougon, Abobo, Bouake, Yamoussoukro...");
     }
-    setLoadingPlaces(false);
   };
 
   const handleSaveManuelle = async () => {
