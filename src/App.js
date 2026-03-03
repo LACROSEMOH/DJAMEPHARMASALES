@@ -24,7 +24,7 @@ const db = getFirestore(firebaseApp);
 const COMMERCIALES = [
   { nom: "ANNE N'GORAN",      pass: "ANNEDJAME11" },
   { nom: "TIE LOU CLAUDINE",  pass: "LOUDJAME12" },
-  { nom: "AICHA DIALLO",     pass: "AICHADJAME13" },
+  { nom: "AICHA DIALLO",      pass: "AICHADJAME13" },
   { nom: "ANNIMATRICE1",      pass: "ANIMDJAME14" },
   { nom: "ANNIMATRICE2",      pass: "ANIMDJAME15" },
 ];
@@ -37,10 +37,10 @@ const ADMINS = [
 // DÉLÉGUÉS MÉDICAUX — À personnaliser
 // ═══════════════════════════════════════════════
 const DELEGUES = [
-  { nom: "OUATTARA YASMINE", pass: "OUDJAME11" },
-  { nom: "DOUCOURE ASSITA", pass: "DOUDJAME12" },
-  { nom: "FUTUR DELEGUE1", pass: "DEDJAME13" },
-  { nom: "FUTUR DELEGUE2", pass: "DEDJAME14" },
+  { nom: "DELEGUE 1", pass: "DELEG01" },
+  { nom: "DELEGUE 2", pass: "DELEG02" },
+  { nom: "DELEGUE 3", pass: "DELEG03" },
+  { nom: "DELEGUE 4", pass: "DELEG04" },
 ];
 
 // Clé Google Maps — À remplacer par votre vraie clé
@@ -2307,6 +2307,20 @@ export default function App() {
       setPharmacies(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
     return () => unsub();
+  }, []);
+
+  // Migration unique : fusion AICHA LACROSE -> AICHA DIALLO dans Firebase
+  useEffect(() => {
+    const migrate = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, "ventes")));
+        const toFix = snap.docs.filter(d => d.data().commerciale === "AICHA LACROSE");
+        if (toFix.length === 0) return;
+        await Promise.all(toFix.map(d => updateDoc(doc(db, "ventes", d.id), { commerciale: "AICHA DIALLO" })));
+        console.log("Migration AICHA: " + toFix.length + " ventes mises a jour.");
+      } catch(e) {}
+    };
+    migrate();
   }, []);
 
   // Ecoute tournees delegues en temps reel
