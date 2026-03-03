@@ -830,10 +830,10 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 1000,
-          system: "Tu es un expert en geographie de la Cote d'Ivoire. Reponds UNIQUEMENT avec un tableau JSON valide, sans texte avant ou apres. Format strict: [{"nom":"...","adresse":"..."}]",
+          system: "Tu es un expert en geographie de Cote d Ivoire. Reponds UNIQUEMENT avec un tableau JSON valide sans texte avant ou apres. Format: [{nom: string, adresse: string}]",
           messages: [{
             role: "user",
-            content: "Liste 15 pharmacies reelles et connues situees a " + searchInput + " en Cote d'Ivoire. Donne le nom exact et l'adresse ou quartier. JSON uniquement."
+            content: "Liste 15 pharmacies reelles situees a " + searchInput + " en Cote d Ivoire. Donne nom et adresse. JSON uniquement."
           }]
         })
       });
