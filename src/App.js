@@ -1,5 +1,5 @@
 // DjamePharmaSales v3.5 — 202603030032
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy, setDoc, updateDoc, getDoc } from "firebase/firestore";
@@ -780,6 +780,152 @@ function DelegueInterface({ user, tournees, rapportsVisite, onSubmitVisite, onLo
 }
 
 
+
+// ═══════════════════════════════════════════════
+// COMPOSANT CARTE LEAFLET — Toutes pharmacies reelles
+// ═══════════════════════════════════════════════
+function CarteLeaflet({ zone, onSelectPharmacie }) {
+  const iframeRef = React.useRef(null);
+
+  const zoneQuery = zone.replace("Abidjan - ", "").replace("é","e").replace("è","e").replace("ê","e").replace("à","a").replace("ô","o").replace("î","i").replace("û","u").replace("ï","i").replace("ü","u").replace("â","a");
+
+  const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
+<style>
+  body { margin: 0; padding: 0; }
+  #map { width: 100%; height: 520px; }
+  .loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); background: white; padding: 20px 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); font-family: sans-serif; font-size: 15px; font-weight: 700; color: #744210; z-index: 9999; }
+  .pharm-popup { font-family: sans-serif; }
+  .pharm-popup h3 { margin: 0 0 6px; color: #1a365d; font-size: 14px; }
+  .pharm-popup p { margin: 0 0 10px; color: #718096; font-size: 12px; }
+  .pharm-popup button { background: linear-gradient(135deg,#744210,#d69e2e); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 13px; width: 100%; }
+  .pharm-popup button:hover { opacity: 0.9; }
+  .count { position: absolute; bottom: 10px; left: 10px; z-index: 1000; background: white; padding: 8px 14px; border-radius: 20px; font-family: sans-serif; font-size: 12px; font-weight: 700; color: #744210; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="loading" class="loading">Chargement des pharmacies...</div>
+<div id="count" class="count" style="display:none"></div>
+<script>
+var map = L.map('map');
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors', maxZoom: 19
+}).addTo(map);
+
+var pharmIcon = L.divIcon({
+  html: '<div style="background:#e53e3e;width:14px;height:14px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
+  iconSize: [20,20], iconAnchor: [10,10], className: ''
+});
+
+var selectedIcon = L.divIcon({
+  html: '<div style="background:#276749;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.5)"></div>',
+  iconSize: [22,22], iconAnchor: [11,11], className: ''
+});
+
+var selected = {};
+
+function addPharmacie(name, lat, lon, adresse) {
+  var marker = L.marker([lat, lon], {icon: pharmIcon}).addTo(map);
+  var popup = L.popup({maxWidth: 240}).setContent(
+    '<div class="pharm-popup">' +
+    '<h3>' + name + '</h3>' +
+    '<p>' + (adresse || '') + '</p>' +
+    '<button onclick="selectPharmacie(\\'' + name.replace(/'/g,"\\\\'") + '\\', ' + lat + ', ' + lon + ', \\'' + (adresse||'').replace(/'/g,"\\\\'") + '\\')">+ Ajouter a la liste</button>' +
+    '</div>'
+  );
+  marker.bindPopup(popup);
+  marker._pharmName = name;
+  marker._pharmLat = lat;
+  marker._pharmLon = lon;
+  return marker;
+}
+
+var allMarkers = {};
+
+function selectPharmacie(name, lat, lon, adresse) {
+  selected[name] = true;
+  if (allMarkers[name]) allMarkers[name].setIcon(selectedIcon);
+  window.parent.postMessage({type:'pharmacie', nom: name, lat: lat, lng: lon, adresse: adresse}, '*');
+  map.closePopup();
+}
+
+// Geocode then load pharmacies via Overpass
+fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent('${zoneQuery} Cote Ivoire') + '&format=json&limit=1', {headers:{'User-Agent':'DjamePharma/1.0'}})
+.then(r => r.json())
+.then(function(geo) {
+  if (!geo || geo.length === 0) {
+    document.getElementById('loading').textContent = 'Zone introuvable. Essayez: Cocody, Plateau, Yopougon...';
+    return;
+  }
+  var lat = parseFloat(geo[0].lat);
+  var lon = parseFloat(geo[0].lon);
+  map.setView([lat, lon], 14);
+
+  var d = 0.06;
+  var query = '[out:json][timeout:30];(node["amenity"="pharmacy"](' + (lat-d) + ',' + (lon-d) + ',' + (lat+d) + ',' + (lon+d) + ');way["amenity"="pharmacy"](' + (lat-d) + ',' + (lon-d) + ',' + (lat+d) + ',' + (lon+d) + ');relation["amenity"="pharmacy"](' + (lat-d) + ',' + (lon-d) + ',' + (lat+d) + ',' + (lon+d) + '););out center 80;';
+
+  return fetch('https://overpass-api.de/api/interpreter', {method:'POST', body:'data='+encodeURIComponent(query)});
+})
+.then(function(r) { return r ? r.json() : null; })
+.then(function(data) {
+  document.getElementById('loading').style.display = 'none';
+  if (!data || !data.elements) return;
+  var count = 0;
+  data.elements.forEach(function(el) {
+    var name = (el.tags && el.tags.name) ? el.tags.name : 'Pharmacie';
+    var elat = el.lat || (el.center && el.center.lat);
+    var elon = el.lon || (el.center && el.center.lon);
+    if (!elat || !elon) return;
+    var adresse = (el.tags && (el.tags['addr:street'] || el.tags['addr:city'])) ? (el.tags['addr:street'] || '') + ' ' + (el.tags['addr:city'] || '') : '';
+    var m = addPharmacie(name, elat, elon, adresse.trim());
+    allMarkers[name] = m;
+    count++;
+  });
+  var countEl = document.getElementById('count');
+  countEl.style.display = 'block';
+  countEl.textContent = count + ' pharmacies trouvees';
+  if (count === 0) {
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('loading').textContent = 'Aucune pharmacie trouvee dans cette zone';
+  }
+})
+.catch(function(e) {
+  document.getElementById('loading').textContent = 'Erreur chargement. Reessayez.';
+});
+<\/script>
+</body>
+</html>`;
+
+  React.useEffect(() => {
+    if (!iframeRef.current) return;
+    const handleMsg = (e) => {
+      if (e.data && e.data.type === 'pharmacie') {
+        onSelectPharmacie(e.data);
+      }
+    };
+    window.addEventListener('message', handleMsg);
+    return () => window.removeEventListener('message', handleMsg);
+  }, [onSelectPharmacie]);
+
+  return (
+    <iframe
+      ref={iframeRef}
+      title="carte-leaflet"
+      srcDoc={htmlContent}
+      width="100%"
+      height="520"
+      style={{ border: 0, display: "block" }}
+      sandbox="allow-scripts allow-same-origin"
+    />
+  );
+}
+
 // ═══════════════════════════════════════════════
 // PANEL ADMIN — GESTION DELEGUES
 // ═══════════════════════════════════════════════
@@ -1061,87 +1207,112 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
       {/* ── RECHERCHE PHARMACIES ── */}
       {view === "recherche" && (
         <div>
-          {/* Barre de recherche */}
-          <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 20 }}>
-            <div style={{ fontWeight: 800, color: "#744210", fontSize: 16, marginBottom: 6 }}>Rechercher des pharmacies</div>
-            <div style={{ fontSize: 13, color: "#718096", marginBottom: 16 }}>Entrez une ville ou un quartier — les pharmacies trouvees peuvent etre ajoutees a votre liste</div>
-            <div style={{ background: "#fffff0", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: "#744210", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span>Pharmacie non trouvee dans les resultats ? Ajoutez-la manuellement.</span>
-              <button onClick={handleSaveManuelle} style={{ padding: "6px 14px", background: "#744210", color: "white", border: "none", borderRadius: 6, cursor: "pointer", fontWeight: 700, fontSize: 12, whiteSpace: "nowrap", marginLeft: 12 }}>+ Ajout manuel</button>
+          <div style={{ background: "white", borderRadius: 14, padding: 20, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 16 }}>
+            <div style={{ fontWeight: 800, color: "#744210", fontSize: 15, marginBottom: 6 }}>Rechercher des pharmacies sur la carte</div>
+            <div style={{ fontSize: 13, color: "#718096", marginBottom: 14 }}>
+              Choisissez une zone — toutes les pharmacies reelles apparaissent sur la carte. Cliquez sur un marqueur pour l'ajouter a votre liste.
             </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <input
-                placeholder="Ex: Cocody, Plateau, Bouake, Yopougon..."
-                value={searchInput}
-                onChange={e => setSearchInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && searchPlaces()}
-                style={{ ...iS, flex: 1 }}
-              />
-              <button onClick={searchPlaces} disabled={loadingPlaces} style={{ padding: "10px 22px", background: loadingPlaces ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: loadingPlaces ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
-                {loadingPlaces ? "Recherche..." : "Rechercher"}
-              </button>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <select value={searchZoneAdmin} onChange={e => setSearchZoneAdmin(e.target.value)} style={{ ...iS, flex: 1, minWidth: 220 }}>
+                <option value="">-- Choisir une zone --</option>
+                {ZONES_CI.map(z => <option key={z}>{z}</option>)}
+              </select>
+              <input placeholder="Ou tapez un nom de quartier..." value={searchInput} onChange={e => setSearchInput(e.target.value)} style={{ ...iS, flex: 1, minWidth: 200 }} />
             </div>
           </div>
 
-          {/* Resultats Google Places */}
-          {placesResults.length > 0 && (
-            <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 20 }}>
-              <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>{placesResults.length} pharmacies trouvees pour "{searchInput}"</span>
-                <span style={{ fontSize: 12, color: "#718096", fontWeight: 400 }}>Cliquez "Ajouter" pour sauvegarder dans votre liste</span>
+          {(searchZoneAdmin || searchInput) && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 16, alignItems: "flex-start" }}>
+
+              {/* CARTE LEAFLET via srcdoc */}
+              <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid #e2e8f0", fontSize: 13, color: "#718096" }}>
+                  Carte — <b style={{ color: "#744210" }}>{searchZoneAdmin || searchInput}</b> &nbsp;|&nbsp; Cliquez sur un 🔴 pour ajouter la pharmacie
+                </div>
+                <CarteLeaflet
+                  zone={searchZoneAdmin || searchInput}
+                  onSelectPharmacie={(ph) => {
+                    const nom = ph.nom;
+                    if (selectedForAssign.includes("pick_" + nom)) return;
+                    setSelectedForAssign(prev => [...prev, "pick_" + nom]);
+                    const already = savedPharmacies.find(p => p.nom === nom);
+                    if (!already) {
+                      addDoc(collection(db, "pharmaciesVisite"), {
+                        nom, adresse: ph.adresse || (searchZoneAdmin || searchInput),
+                        ville: searchZoneAdmin || searchInput,
+                        placeId: "map_" + nom.replace(/\s/g, "_") + "_" + Date.now(),
+                        lat: ph.lat || null, lng: ph.lng || null,
+                        savedAt: new Date().toISOString(),
+                      });
+                    }
+                  }}
+                />
               </div>
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                {placesResults.map((place, idx) => {
-                  const alreadySaved = savedPharmacies.find(p => p.placeId === place.place_id);
-                  return (
-                    <div key={place.place_id} style={{ padding: "14px 20px", borderBottom: "1px solid #f7fafc", display: "flex", justifyContent: "space-between", alignItems: "center", background: idx % 2 === 0 ? "white" : "#f7fafc", gap: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14, color: "#1a365d" }}>{place.name}</div>
-                        <div style={{ fontSize: 12, color: "#718096", marginTop: 3 }}>{place.formatted_address}</div>
-                        {place.rating && <div style={{ fontSize: 11, color: "#d69e2e", marginTop: 2 }}>{"⭐".repeat(Math.round(place.rating))} {place.rating}/5</div>}
-                      </div>
-                      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                        {place.lat && (
-                          <a href={"https://www.google.com/maps?q=" + place.lat + "," + place.lon} target="_blank" rel="noreferrer"
-                            style={{ padding: "7px 12px", background: "#ebf4ff", color: "#2b6cb0", borderRadius: 8, fontWeight: 600, fontSize: 12, textDecoration: "none" }}>
-                            Voir carte
-                          </a>
-                        )}
-                        {alreadySaved ? (
-                          <span style={{ padding: "7px 12px", background: "#f0fff4", color: "#276749", borderRadius: 8, fontWeight: 700, fontSize: 12 }}>Deja sauvegardee</span>
-                        ) : (
-                          <button onClick={() => handleSavePharmacie(place)} style={{ padding: "7px 14px", background: "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>
-                            + Ajouter
-                          </button>
-                        )}
-                      </div>
+
+              {/* Liste selection droite */}
+              <div style={{ background: "white", borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: 560 }}>
+                <div style={{ padding: "14px 16px", borderBottom: "1px solid #e2e8f0", background: "#fffff0" }}>
+                  <div style={{ fontWeight: 800, color: "#744210", fontSize: 14 }}>Pharmacies selectionnees</div>
+                  <div style={{ fontSize: 11, color: "#718096", marginTop: 3 }}>Cliquez sur un marqueur sur la carte pour ajouter</div>
+                </div>
+                <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
+                  {selectedForAssign.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: 30, color: "#a0aec0", fontSize: 13 }}>
+                      <div style={{ fontSize: 30 }}>👆</div>
+                      <div style={{ marginTop: 8 }}>Cliquez sur les pharmacies sur la carte</div>
                     </div>
-                  );
-                })}
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                      {selectedForAssign.map(key => {
+                        const nom = key.replace("pick_", "");
+                        return (
+                          <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "#fffff0", borderRadius: 10, border: "2px solid #d69e2e" }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: "#1a365d" }}>🏥 {nom}</div>
+                            <button onClick={() => setSelectedForAssign(prev => prev.filter(x => x !== key))}
+                              style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 6, padding: "3px 8px", cursor: "pointer", color: "#e53e3e", fontSize: 12, fontWeight: 700 }}>✕</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #e2e8f0" }}>
+                    <button onClick={handleSaveManuelle} style={{ width: "100%", padding: "9px", background: "#f7fafc", color: "#744210", border: "2px dashed #d69e2e", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>
+                      + Ajouter manuellement
+                    </button>
+                  </div>
+                </div>
+                {selectedForAssign.length > 0 && (
+                  <div style={{ padding: "12px 14px", borderTop: "2px solid #e2e8f0", background: "#f0fff4" }}>
+                    <div style={{ fontSize: 12, color: "#276749", fontWeight: 700, marginBottom: 8 }}>{selectedForAssign.length} pharmacie(s) selectionnee(s)</div>
+                    <button onClick={() => setView("assigner")} style={{ width: "100%", padding: "11px", background: "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 8, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+                      Assigner aux delegues →
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* Liste sauvegardee */}
-          <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
-            <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span>Ma liste de pharmacies ({savedPharmacies.length})</span>
-              {savedPharmacies.length > 0 && (
+          {!searchZoneAdmin && !searchInput && (
+            <div style={{ textAlign: "center", padding: 60, background: "white", borderRadius: 14, color: "#a0aec0", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+              <div style={{ fontSize: 50 }}>🗺️</div>
+              <div style={{ marginTop: 14, fontSize: 16, fontWeight: 600 }}>Choisissez une zone ci-dessus</div>
+              <div style={{ marginTop: 6, fontSize: 13 }}>La carte avec toutes les pharmacies reelles apparaitra ici</div>
+            </div>
+          )}
+
+          {savedPharmacies.length > 0 && (
+            <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginTop: 16 }}>
+              <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>Ma liste sauvegardee ({savedPharmacies.length} pharmacies)</span>
                 <button onClick={() => setView("assigner")} style={{ padding: "7px 16px", background: "#276749", color: "white", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
                   Assigner aux delegues
                 </button>
-              )}
-            </div>
-            {savedPharmacies.length === 0 ? (
-              <div style={{ textAlign: "center", padding: 40, color: "#a0aec0" }}>
-                <div style={{ fontSize: 36 }}>🏥</div>
-                <div style={{ marginTop: 10 }}>Aucune pharmacie sauvegardee. Utilisez la recherche ci-dessus.</div>
               </div>
-            ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead><tr style={{ background: "#f7fafc" }}>
-                    {["Pharmacie", "Adresse", "Zone", ""].map(h => (
+                    {["Pharmacie", "Zone", ""].map(h => (
                       <th key={h} style={{ padding: "10px 14px", textAlign: "left", color: "#4a5568", fontWeight: 700, borderBottom: "2px solid #e2e8f0", fontSize: 12 }}>{h}</th>
                     ))}
                   </tr></thead>
@@ -1149,7 +1320,6 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
                     {savedPharmacies.map((p, idx) => (
                       <tr key={p.id} style={{ background: idx % 2 === 0 ? "white" : "#f7fafc" }}>
                         <td style={{ ...tdS, fontWeight: 700 }}>{p.nom}</td>
-                        <td style={{ ...tdS, fontSize: 12, color: "#718096", maxWidth: 250 }}>{p.adresse}</td>
                         <td style={tdS}><span style={{ background: "#fffff0", color: "#744210", padding: "2px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>{p.ville}</span></td>
                         <td style={tdS}>
                           <button onClick={() => handleDeleteSaved(p.id)} style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 6, padding: "4px 8px", cursor: "pointer", color: "#e53e3e", fontSize: 11 }}>X</button>
@@ -1159,11 +1329,10 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
-
       {/* ── ASSIGNER TOURNEE ── */}
       {view === "assigner" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "flex-start" }}>
