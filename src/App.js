@@ -391,14 +391,6 @@ function ProgrammeAnimation({ user }) {
 // ═══════════════════════════════════════════════
 // PROGRAMMES D'ANIMATION COMMERCIALE
 // ═══════════════════════════════════════════════
-const PROGRAMMES = {};
-
-const JOURS_ORDRE = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
-
-function getProgrammeCommerciale(nom) {
-  return PROGRAMMES[nom] || [];
-}
-
 function getJourSemaine() {
   const jours = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
   return jours[new Date().getDay()];
@@ -2641,26 +2633,6 @@ function AnimationsAdmin({ sales }) {
             </div>
           )}
 
-          {/* Programme fixe en bas */}
-          <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginTop: 20 }}>
-            <div style={{ padding: 16, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-              {Object.entries(PROGRAMMES).map(([comm, prog]) => {
-                const hebdo = prog.filter(p => p.recurrence === "hebdo" || p.recurrence === "le 15 du mois");
-                if (hebdo.length === 0) return null;
-                return (
-                  <div key={comm} style={{ background: "#f7fafc", borderRadius: 12, padding: 14, border: "1px solid #e2e8f0" }}>
-                    <div style={{ fontWeight: 800, fontSize: 13, color: "#744210", marginBottom: 8 }}>{comm}</div>
-                    {hebdo.map((p, i) => (
-                      <div key={i} style={{ fontSize: 12, color: "#4a5568", marginBottom: 4, display: "flex", gap: 6 }}>
-                        <span style={{ fontWeight: 700, color: "#2b6cb0", minWidth: 70 }}>{p.jour}</span>
-                        <span>{p.pharmacie}</span>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         </div>
       )}
 
