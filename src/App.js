@@ -36,8 +36,12 @@ const ADMINS = [
 // ═══════════════════════════════════════════════
 // DÉLÉGUÉS MÉDICAUX — À personnaliser
 // ═══════════════════════════════════════════════
-// Delegues: tableau vide par defaut, rempli depuis Firebase
-const DELEGUES = [];
+const DELEGUES = [
+  { nom: "OUATTARA YASMINE",  pass: "OUDJAME11" },
+  { nom: "DOUCOURE ASSITA",   pass: "OUDJAME12" },
+  { nom: "DELEGUE 3",         pass: "DELDJAME13" },
+  { nom: "DELEGUE 4",         pass: "DELDJAME14" },
+];
 
 // Clé Google Maps — À remplacer par votre vraie clé
 const GOOGLE_MAPS_KEY = "AIzaSyBuDzS8HMaADCuspI4fICayTiSyR8uu1sM";
@@ -145,7 +149,7 @@ const tdS = { padding: "10px 14px", borderBottom: "1px solid #edf2f7", verticalA
 // ═══════════════════════════════════════════════
 // ÉCRAN DE CONNEXION
 // ═══════════════════════════════════════════════
-function LoginScreen({ onLogin, deleguesDB }) {
+function LoginScreen({ onLogin }) {
   const [role, setRole] = useState(null);
   const [nom, setNom] = useState("");
   const [pass, setPass] = useState("");
@@ -256,7 +260,7 @@ function LoginScreen({ onLogin, deleguesDB }) {
                 <label style={lS}>Votre nom</label>
                 <select value={nom} onChange={e => setNom(e.target.value)} style={iS}>
                   <option value="">-- Sélectionnez votre nom --</option>
-                  {deleguesDB.map(d => <option key={d.nom}>{d.nom}</option>)}
+                  {DELEGUES.map(d => <option key={d.nom}>{d.nom}</option>)}
                 </select>
               </div>
               <div>
@@ -265,7 +269,7 @@ function LoginScreen({ onLogin, deleguesDB }) {
                   <input type={showPass ? "text" : "password"} placeholder="••••••••" value={pass} onChange={e => setPass(e.target.value)}
                     onKeyDown={e => {
                       if (e.key === "Enter") {
-                        const list = deleguesDB;
+                        const list = DELEGUES;
                         const found = list.find(d => d.nom === nom && d.pass === pass);
                         if (found) { setError(""); onLogin({ role: "delegue", nom: found.nom }); }
                         else setError("Nom ou mot de passe incorrect.");
@@ -277,7 +281,7 @@ function LoginScreen({ onLogin, deleguesDB }) {
               </div>
               {error && <div style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 8, padding: "10px 14px", color: "#e53e3e", fontSize: 13 }}>⚠️ {error}</div>}
               <button onClick={() => {
-                const list2 = deleguesDB;
+                const list2 = DELEGUES;
                 const found = list2.find(d => d.nom === nom && d.pass === pass);
                 if (found) { setError(""); onLogin({ role: "delegue", nom: found.nom }); }
                 else setError("Nom ou mot de passe incorrect.");
@@ -455,7 +459,7 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
 // ═══════════════════════════════════════════════
 // INTERFACE DELEGUE MEDICAL
 // ═══════════════════════════════════════════════
-function DelegueInterface({ user, tournees, rapportsVisite, onSubmitVisite, onLogout, deleguesDB }) {
+function DelegueInterface({ user, tournees, rapportsVisite, onSubmitVisite, onLogout }) {
   const [activeTab, setActiveTab] = useState("tournee");
   const [selectedPharmacie, setSelectedPharmacie] = useState(null);
   const [showRapportModal, setShowRapportModal] = useState(false);
@@ -865,7 +869,7 @@ function CarteLeaflet({ zone, onSelectPharmacie }) {
 }
 
 
-function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDeleteTournee, pharmacies, onAddPharmacie, user, deleguesDB }) {
+function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDeleteTournee, pharmacies, onAddPharmacie, user }) {
   const [view, setView] = useState("dashboard");
   const [selectedDelegue, setSelectedDelegue] = useState(null);
   const [formTournee, setFormTournee] = useState({ delegue: "", pharmacie: "", ville: "", adresse: "", date: new Date().toISOString().split("T")[0], notes: "" });
@@ -891,7 +895,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
     return () => unsub();
   }, []);
 
-  const statsByDelegue = deleguesDB.map(d => {
+  const statsByDelegue = DELEGUES.map(d => {
     const mesT = tournees.filter(t => t.delegue === d.nom);
     const mesR = rapportsVisite.filter(r => r.delegue === d.nom);
     const today = mesT.filter(t => t.date === todayStr);
@@ -1046,7 +1050,6 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
           { id: "assigner", label: "Assigner une tournee" + (selectedForAssign.length > 0 ? " (" + selectedForAssign.length + ")" : "") },
           { id: "recherche", label: "Rechercher des pharmacies" },
           { id: "rapports", label: "Rapports de visite" },
-          ...(user && user.nom === "MOHAMED KONE YASSINE" ? [{ id: "gestion", label: "Gerer les delegues" }] : []),
         ].map(v => (
           <button key={v.id} onClick={() => setView(v.id)} style={{
             padding: "9px 18px", borderRadius: 8, border: "none",
@@ -1064,7 +1067,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
         <>
           <div style={{ fontWeight: 800, color: "#744210", fontSize: 15, marginBottom: 14 }}>Suivi des delegues — Aujourd'hui {todayStr}</div>
 
-          {deleguesDB.length === 0 && (
+          {DELEGUES.length === 0 && (
             <div style={{ background: "#fffff0", border: "2px dashed #d69e2e", borderRadius: 14, padding: 30, textAlign: "center", marginBottom: 20 }}>
               <div style={{ fontSize: 36 }}>👥</div>
               <div style={{ fontWeight: 800, color: "#744210", fontSize: 15, marginTop: 10 }}>Aucun delegue configure</div>
@@ -1348,7 +1351,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
                 <label style={lS}>Delegue medical *</label>
                 <select value={assignDelegue} onChange={e => setAssignDelegue(e.target.value)} style={iS}>
                   <option value="">-- Choisir un delegue --</option>
-                  {deleguesDB.map(d => <option key={d.nom}>{d.nom}</option>)}
+                  {DELEGUES.map(d => <option key={d.nom}>{d.nom}</option>)}
                 </select>
               </div>
               <div>
@@ -1388,7 +1391,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
             <div style={{ fontWeight: 800, fontSize: 15, color: "#744210", flex: 1 }}>Rapports de visite</div>
             <select value={selectedDelegue || ""} onChange={e => setSelectedDelegue(e.target.value || null)} style={{ ...iS, width: "auto", minWidth: 180 }}>
               <option value="">Tous les delegues</option>
-              {deleguesDB.map(d => <option key={d.nom}>{d.nom}</option>)}
+              {DELEGUES.map(d => <option key={d.nom}>{d.nom}</option>)}
             </select>
             {user && user.nom === "MOHAMED KONE YASSINE" && (
               <>
@@ -1487,7 +1490,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
                   if (!formDelegue.nom.trim() || !formDelegue.pass.trim()) return alert("Nom et mot de passe obligatoires.");
                   setSaving(true);
                   try {
-                    const data = { nom: formDelegue.nom.trim(), pass: formDelegue.pass.trim(), ordre: deleguesDB.length + 1 };
+                    const data = { nom: formDelegue.nom.trim(), pass: formDelegue.pass.trim(), ordre: DELEGUES.length + 1 };
                     if (editDelegueId) { await updateDoc(doc(db, "deleguesConfig", editDelegueId), data); alert("Delegue mis a jour !"); }
                     else { await addDoc(collection(db, "deleguesConfig"), data); alert("Delegue ajoute !"); }
                     setFormDelegue({ nom: "", pass: "" }); setEditDelegueId(null);
@@ -1497,7 +1500,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
                   {saving ? "..." : editDelegueId ? "Mettre a jour" : "Ajouter"}
                 </button>
               </div>
-              {deleguesDB.length === 0 && (
+              {DELEGUES.length === 0 && (
                 <button onClick={async () => {
                   if (!window.confirm("Initialiser 4 delegues par defaut ?")) return;
                   const defaults = [
@@ -1517,15 +1520,15 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
 
           <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
             <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210" }}>
-              Delegues actifs ({deleguesDB.length})
+              Delegues actifs ({DELEGUES.length})
             </div>
-            {deleguesDB.length === 0 ? (
+            {DELEGUES.length === 0 ? (
               <div style={{ textAlign: "center", padding: 40, color: "#a0aec0" }}>
                 <div style={{ fontSize: 36 }}>👤</div>
                 <div style={{ marginTop: 10 }}>Aucun delegue configure.</div>
               </div>
             ) : (
-              deleguesDB.map(d => (
+              DELEGUES.map(d => (
                 <div key={d.id} style={{ padding: "14px 20px", borderBottom: "1px solid #f7fafc", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div>
                     <div style={{ fontWeight: 800, fontSize: 14, color: "#1a365d" }}>{d.nom}</div>
@@ -1879,7 +1882,7 @@ function StockCommerciale({ pharmacies }) {
   );
 }
 
-function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, pharmacies, onAddPharmacie, onDeletePharmacie, onAddLivraison, onDeletePharmacieProduit, tournees, rapportsVisite, onCreateTournee, onDeleteTournee, deleguesDB }) {
+function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, pharmacies, onAddPharmacie, onDeletePharmacie, onAddLivraison, onDeletePharmacieProduit, tournees, rapportsVisite, onCreateTournee, onDeleteTournee }) {
   const [filterComm, setFilterComm] = useState("Toutes");
   const [filterDate, setFilterDate] = useState("");
   const [activeTab, setActiveTab] = useState("apercu"); // apercu | semaine | mois | produits | stats
@@ -2241,7 +2244,6 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, 
                 pharmacies={pharmacies}
                 onAddPharmacie={onAddPharmacie}
                 user={user}
-                deleguesDB={deleguesDB}
               />
             )}
 
@@ -2343,7 +2345,6 @@ export default function App() {
   const [pharmacies, setPharmacies] = useState([]);
   const [tournees, setTournees] = useState([]);
   const [rapportsVisite, setRapportsVisite] = useState([]);
-  const [deleguesDB, setDeleguesDB] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Écoute ventes en temps réel
@@ -2386,16 +2387,6 @@ export default function App() {
     return () => unsub();
   }, []);
 
-  // Charge les delegues depuis Firebase
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, "deleguesConfig"), (snap) => {
-      if (snap.docs.length > 0) {
-        const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.ordre||0)-(b.ordre||0));
-        setDeleguesDB(list);
-      }
-    });
-    return () => unsub();
-  }, []);
 
   // Ecoute rapports de visite en temps reel
   useEffect(() => {
@@ -2512,10 +2503,10 @@ export default function App() {
     } catch(e) { alert("Erreur de suppression."); }
   };
 
-  if (!user) return <LoginScreen onLogin={setUser} deleguesDB={deleguesDB} />;
+  if (!user) return <LoginScreen onLogin={setUser} />;
   if (user.role === "commerciale")
     return <CommercialInterface user={user} sales={sales} pharmacies={pharmacies} onSubmit={handleNewSale} onLogout={() => setUser(null)} />;
   if (user.role === "delegue")
-    return <DelegueInterface user={user} tournees={tournees} rapportsVisite={rapportsVisite} onSubmitVisite={handleSubmitVisite} onLogout={() => setUser(null)} deleguesDB={deleguesDB} />;
-  return <AdminInterface sales={sales} onDelete={handleDelete} onResetAll={handleResetAll} onLogout={() => setUser(null)} user={user} loading={loading} pharmacies={pharmacies} onAddPharmacie={handleAddPharmacie} onDeletePharmacie={handleDeletePharmacie} onAddLivraison={handleAddLivraison} onDeletePharmacieProduit={handleDeletePharmacieProduit} tournees={tournees} rapportsVisite={rapportsVisite} onCreateTournee={handleCreateTournee} onDeleteTournee={handleDeleteTournee} deleguesDB={deleguesDB} />;
+    return <DelegueInterface user={user} tournees={tournees} rapportsVisite={rapportsVisite} onSubmitVisite={handleSubmitVisite} onLogout={() => setUser(null)} />;
+  return <AdminInterface sales={sales} onDelete={handleDelete} onResetAll={handleResetAll} onLogout={() => setUser(null)} user={user} loading={loading} pharmacies={pharmacies} onAddPharmacie={handleAddPharmacie} onDeletePharmacie={handleDeletePharmacie} onAddLivraison={handleAddLivraison} onDeletePharmacieProduit={handleDeletePharmacieProduit} tournees={tournees} rapportsVisite={rapportsVisite} onCreateTournee={handleCreateTournee} onDeleteTournee={handleDeleteTournee} />;
 }
