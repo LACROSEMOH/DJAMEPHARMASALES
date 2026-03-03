@@ -36,8 +36,8 @@ const ADMINS = [
 // ═══════════════════════════════════════════════
 // DÉLÉGUÉS MÉDICAUX — À personnaliser
 // ═══════════════════════════════════════════════
-// Delegues charges depuis Firebase — modifiables sans toucher au code
-let DELEGUES = []; // sera rempli au chargement
+// Delegues: tableau vide par defaut, rempli depuis Firebase
+const DELEGUES = [];
 
 // Clé Google Maps — À remplacer par votre vraie clé
 const GOOGLE_MAPS_KEY = "AIzaSyBuDzS8HMaADCuspI4fICayTiSyR8uu1sM";
@@ -784,132 +784,90 @@ function DelegueInterface({ user, tournees, rapportsVisite, onSubmitVisite, onLo
 // ═══════════════════════════════════════════════
 function CarteLeaflet({ zone, onSelectPharmacie }) {
   const iframeRef = React.useRef(null);
-
-  const zoneQuery = zone.replace("Abidjan - ", "").replace("é","e").replace("è","e").replace("ê","e").replace("à","a").replace("ô","o").replace("î","i").replace("û","u").replace("ï","i").replace("ü","u").replace("â","a");
-
-  const htmlContent = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
-<style>
-  body { margin: 0; padding: 0; }
-  #map { width: 100%; height: 520px; }
-  .loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); background: white; padding: 20px 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); font-family: sans-serif; font-size: 15px; font-weight: 700; color: #744210; z-index: 9999; }
-  .pharm-popup { font-family: sans-serif; }
-  .pharm-popup h3 { margin: 0 0 6px; color: #1a365d; font-size: 14px; }
-  .pharm-popup p { margin: 0 0 10px; color: #718096; font-size: 12px; }
-  .pharm-popup button { background: linear-gradient(135deg,#744210,#d69e2e); color: white; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 13px; width: 100%; }
-  .pharm-popup button:hover { opacity: 0.9; }
-  .count { position: absolute; bottom: 10px; left: 10px; z-index: 1000; background: white; padding: 8px 14px; border-radius: 20px; font-family: sans-serif; font-size: 12px; font-weight: 700; color: #744210; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-</style>
-</head>
-<body>
-<div id="map"></div>
-<div id="loading" class="loading">Chargement des pharmacies...</div>
-<div id="count" class="count" style="display:none"></div>
-<script>
-var map = L.map('map');
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap contributors', maxZoom: 19
-}).addTo(map);
-
-var pharmIcon = L.divIcon({
-  html: '<div style="background:#e53e3e;width:14px;height:14px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
-  iconSize: [20,20], iconAnchor: [10,10], className: ''
-});
-
-var selectedIcon = L.divIcon({
-  html: '<div style="background:#276749;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.5)"></div>',
-  iconSize: [22,22], iconAnchor: [11,11], className: ''
-});
-
-var selected = {};
-
-function addPharmacie(name, lat, lon, adresse) {
-  var marker = L.marker([lat, lon], {icon: pharmIcon}).addTo(map);
-  var popup = L.popup({maxWidth: 240}).setContent(
-    '<div class="pharm-popup">' +
-    '<h3>' + name + '</h3>' +
-    '<p>' + (adresse || '') + '</p>' +
-    '<button onclick="selectPharmacie(\\'' + name.replace(/'/g,"\\\\'") + '\\', ' + lat + ', ' + lon + ', \\'' + (adresse||'').replace(/'/g,"\\\\'") + '\\')">+ Ajouter a la liste</button>' +
-    '</div>'
-  );
-  marker.bindPopup(popup);
-  marker._pharmName = name;
-  marker._pharmLat = lat;
-  marker._pharmLon = lon;
-  return marker;
-}
-
-var allMarkers = {};
-
-function selectPharmacie(name, lat, lon, adresse) {
-  selected[name] = true;
-  if (allMarkers[name]) allMarkers[name].setIcon(selectedIcon);
-  window.parent.postMessage({type:'pharmacie', nom: name, lat: lat, lng: lon, adresse: adresse}, '*');
-  map.closePopup();
-}
-
-// Geocode then load pharmacies via Overpass
-fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent('${zoneQuery} Cote Ivoire') + '&format=json&limit=1', {headers:{'User-Agent':'DjamePharma/1.0'}})
-.then(r => r.json())
-.then(function(geo) {
-  if (!geo || geo.length === 0) {
-    document.getElementById('loading').textContent = 'Zone introuvable. Essayez: Cocody, Plateau, Yopougon...';
-    return;
-  }
-  var lat = parseFloat(geo[0].lat);
-  var lon = parseFloat(geo[0].lon);
-  map.setView([lat, lon], 14);
-
-  var d = 0.06;
-  var query = '[out:json][timeout:30];(node["amenity"="pharmacy"](' + (lat-d) + ',' + (lon-d) + ',' + (lat+d) + ',' + (lon+d) + ');way["amenity"="pharmacy"](' + (lat-d) + ',' + (lon-d) + ',' + (lat+d) + ',' + (lon+d) + ');relation["amenity"="pharmacy"](' + (lat-d) + ',' + (lon-d) + ',' + (lat+d) + ',' + (lon+d) + '););out center 80;';
-
-  return fetch('https://overpass-api.de/api/interpreter', {method:'POST', body:'data='+encodeURIComponent(query)});
-})
-.then(function(r) { return r ? r.json() : null; })
-.then(function(data) {
-  document.getElementById('loading').style.display = 'none';
-  if (!data || !data.elements) return;
-  var count = 0;
-  data.elements.forEach(function(el) {
-    var name = (el.tags && el.tags.name) ? el.tags.name : 'Pharmacie';
-    var elat = el.lat || (el.center && el.center.lat);
-    var elon = el.lon || (el.center && el.center.lon);
-    if (!elat || !elon) return;
-    var adresse = (el.tags && (el.tags['addr:street'] || el.tags['addr:city'])) ? (el.tags['addr:street'] || '') + ' ' + (el.tags['addr:city'] || '') : '';
-    var m = addPharmacie(name, elat, elon, adresse.trim());
-    allMarkers[name] = m;
-    count++;
-  });
-  var countEl = document.getElementById('count');
-  countEl.style.display = 'block';
-  countEl.textContent = count + ' pharmacies trouvees';
-  if (count === 0) {
-    document.getElementById('loading').style.display = 'block';
-    document.getElementById('loading').textContent = 'Aucune pharmacie trouvee dans cette zone';
-  }
-})
-.catch(function(e) {
-  document.getElementById('loading').textContent = 'Erreur chargement. Reessayez.';
-});
-<\/script>
-</body>
-</html>`;
+  const zoneClean = zone.replace("Abidjan - ", "");
 
   React.useEffect(() => {
-    if (!iframeRef.current) return;
     const handleMsg = (e) => {
-      if (e.data && e.data.type === 'pharmacie') {
+      if (e.data && e.data.type === "pharmacie") {
         onSelectPharmacie(e.data);
       }
     };
-    window.addEventListener('message', handleMsg);
-    return () => window.removeEventListener('message', handleMsg);
+    window.addEventListener("message", handleMsg);
+    return () => window.removeEventListener("message", handleMsg);
   }, [onSelectPharmacie]);
+
+  const mapUrl = "https://overpass-api.de/api/interpreter";
+  
+  // Build HTML as array then join to avoid template literal escaping issues
+  const lines = [
+    "<!DOCTYPE html><html><head><meta charset='utf-8'/>",
+    "<link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'/>",
+    "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'><\/script>",
+    "<style>",
+    "body{margin:0;padding:0;}",
+    "#map{width:100%;height:520px;}",
+    ".loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px 30px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.2);font-family:sans-serif;font-size:15px;font-weight:700;color:#744210;z-index:9999;}",
+    ".cnt{position:absolute;bottom:10px;left:10px;z-index:1000;background:white;padding:8px 14px;border-radius:20px;font-family:sans-serif;font-size:12px;font-weight:700;color:#744210;box-shadow:0 2px 8px rgba(0,0,0,0.2);}",
+    "</style></head><body>",
+    "<div id='map'></div>",
+    "<div id='ld' class='loading'>Chargement des pharmacies...</div>",
+    "<div id='cnt' class='cnt' style='display:none'></div>",
+    "<script>",
+    "var map=L.map('map');",
+    "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'OSM',maxZoom:19}).addTo(map);",
+    "var ri=L.divIcon({html:'<div style="background:#e53e3e;width:14px;height:14px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',iconSize:[20,20],iconAnchor:[10,10],className:''});",
+    "var gi=L.divIcon({html:'<div style="background:#276749;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.5)"></div>',iconSize:[22,22],iconAnchor:[11,11],className:''});",
+    "function sel(nm,la,lo,ad){",
+    "  window.parent.postMessage({type:'pharmacie',nom:nm,lat:la,lng:lo,adresse:ad},'*');",
+    "  map.closePopup();",
+    "}",
+    "fetch('https://nominatim.openstreetmap.org/search?q=" + encodeURIComponent(zoneClean + " Cote Ivoire") + "&format=json&limit=1',{headers:{'User-Agent':'DjamePharma/1.0'}})",
+    ".then(function(r){return r.json();})",
+    ".then(function(geo){",
+    "  if(!geo||!geo.length){document.getElementById('ld').textContent='Zone introuvable';return;}",
+    "  var la=parseFloat(geo[0].lat),lo=parseFloat(geo[0].lon);",
+    "  map.setView([la,lo],14);",
+    "  var d=0.06;",
+    "  var q='[out:json][timeout:30];(node["amenity"="pharmacy"]('+( la-d)+','+(lo-d)+','+(la+d)+','+(lo+d)+');way["amenity"="pharmacy"]('+( la-d)+','+(lo-d)+','+(la+d)+','+(lo+d)+'););out center 80;';",
+    "  return fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q)});",
+    "})",
+    ".then(function(r){return r?r.json():null;})",
+    ".then(function(data){",
+    "  document.getElementById('ld').style.display='none';",
+    "  if(!data||!data.elements)return;",
+    "  var c=0;",
+    "  data.elements.forEach(function(el){",
+    "    var nm=(el.tags&&el.tags.name)?el.tags.name:'Pharmacie';",
+    "    var la=el.lat||(el.center&&el.center.lat);",
+    "    var lo=el.lon||(el.center&&el.center.lon);",
+    "    if(!la||!lo)return;",
+    "    var ad=(el.tags&&el.tags['addr:street'])?el.tags['addr:street']:'';",
+    "    var mk=L.marker([la,lo],{icon:ri}).addTo(map);",
+    "    mk.bindPopup(",
+    "      '<div style="font-family:sans-serif;padding:4px">' +",
+    "      '<div style="font-weight:800;font-size:13px;color:#1a365d;margin-bottom:6px">' + nm + '</div>' +",
+    "      '<div style="font-size:11px;color:#718096;margin-bottom:10px">' + ad + '</div>' +",
+    "      '<button id="btn_'+c+'" style="background:linear-gradient(135deg,#744210,#d69e2e);color:white;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;width:100%">+ Ajouter</button>' +",
+    "      '</div>'",
+    "    );",
+    "    mk.on('popupopen',function(e){",
+    "      var n=nm,la2=la,lo2=lo,a=ad;",
+    "      setTimeout(function(){",
+    "        var btn=document.querySelector('.leaflet-popup-content button');",
+    "        if(btn)btn.onclick=function(){sel(n,la2,lo2,a);mk.setIcon(gi);};",
+    "      },50);",
+    "    });",
+    "    c++;",
+    "  });",
+    "  var ce=document.getElementById('cnt');",
+    "  ce.style.display='block';",
+    "  ce.textContent=c+' pharmacies trouvees';",
+    "  if(c===0){document.getElementById('ld').style.display='block';document.getElementById('ld').textContent='Aucune pharmacie trouvee';}",
+    "})",
+    ".catch(function(){document.getElementById('ld').textContent='Erreur chargement. Reessayez.';});",
+    "<\/script></body></html>"
+  ];
+  const htmlContent = lines.join("\n");
 
   return (
     <iframe
@@ -2453,7 +2411,6 @@ export default function App() {
     const unsub = onSnapshot(collection(db, "deleguesConfig"), (snap) => {
       if (snap.docs.length > 0) {
         const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.ordre||0)-(b.ordre||0));
-        DELEGUES = list;
         setDeleguesDB(list);
       }
     });
