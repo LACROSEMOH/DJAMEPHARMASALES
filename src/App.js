@@ -1,4 +1,4 @@
-// DjamePharmaSales v3.6 — 202603031140
+// DjamePharmaSales v3.7 — 202603031200
 import React, { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
@@ -2179,13 +2179,14 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, 
   };
 
   const TABS = [
-    { id: "apercu",     label: "Apercu" },
-    { id: "semaine",    label: "Cette semaine" },
-    { id: "mois",       label: "Ce mois" },
-    { id: "produits",   label: "Top produits" },
-    { id: "stats",      label: "Statistiques" },
-    { id: "stocks",     label: "Stocks pharmacies" },
-    { id: "delegues",   label: "Delegues Medicaux" },
+    { id: "apercu",      label: "Apercu" },
+    { id: "semaine",     label: "Cette semaine" },
+    { id: "mois",        label: "Ce mois" },
+    { id: "produits",    label: "Top produits" },
+    { id: "stats",       label: "Statistiques" },
+    { id: "stocks",      label: "Stocks pharmacies" },
+    { id: "delegues",    label: "Delegues Medicaux" },
+    { id: "animations",  label: "Animations Commerciales" },
   ];
 
   const RankingCard = ({ ranking, dataset, title }) => (
