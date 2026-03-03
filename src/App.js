@@ -1132,7 +1132,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
               <div style={{ fontWeight: 800, color: "#744210", fontSize: 15, marginTop: 10 }}>Aucun delegue configure</div>
               <div style={{ fontSize: 13, color: "#718096", marginTop: 6 }}>
                 {user && user.nom === "MOHAMED KONE YASSINE"
-                  ? "Allez dans l'onglet "Gerer les delegues" pour ajouter vos delegues"
+                  ? "Allez dans l'onglet Gerer les delegues pour ajouter vos delegues"
                   : "L'administrateur doit d'abord configurer les delegues"}
               </div>
               {user && user.nom === "MOHAMED KONE YASSINE" && (
