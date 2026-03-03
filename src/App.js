@@ -301,6 +301,154 @@ function LoginScreen({ onLogin }) {
 // ═══════════════════════════════════════════════
 // INTERFACE COMMERCIALE
 // ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+// COMPOSANT PROGRAMME ANIMATION
+// ═══════════════════════════════════════════════
+function ProgrammeAnimation({ user }) {
+  const programme = getProgrammeCommerciale(user.nom);
+  const jourAujourdhui = getJourSemaine();
+  const joursHebdo = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi"];
+
+  // Séparer hebdo et ponctuel
+  const hebdo = programme.filter(p => p.recurrence === "hebdo" || p.recurrence === "le 15 du mois");
+  const ponctuel = programme.filter(p => p.recurrence !== "hebdo" && p.recurrence !== "le 15 du mois");
+
+  const couleurJour = (jour) => {
+    if (jour === jourAujourdhui) return { bg: "#fffff0", border: "#d69e2e", dot: "#d69e2e" };
+    return { bg: "white", border: "#e2e8f0", dot: "#cbd5e0" };
+  };
+
+  if (programme.length === 0) return (
+    <div style={{ background: "white", borderRadius: 14, padding: 40, textAlign: "center", color: "#a0aec0", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+      <div style={{ fontSize: 40 }}>📅</div>
+      <div style={{ marginTop: 12, fontWeight: 700 }}>Aucun programme assigne</div>
+      <div style={{ fontSize: 13, marginTop: 6 }}>Contactez votre administrateur</div>
+    </div>
+  );
+
+  return (
+    <div>
+      {/* Aujourd'hui */}
+      {hebdo.filter(p => p.jour === jourAujourdhui).length > 0 && (
+        <div style={{ background: "linear-gradient(135deg,#744210,#d69e2e)", borderRadius: 14, padding: 20, marginBottom: 16, color: "white" }}>
+          <div style={{ fontWeight: 900, fontSize: 16, marginBottom: 4 }}>📍 Aujourd'hui — {jourAujourdhui}</div>
+          {hebdo.filter(p => p.jour === jourAujourdhui).map((p, i) => (
+            <div key={i} style={{ background: "rgba(255,255,255,0.2)", borderRadius: 10, padding: "12px 16px", marginTop: 8 }}>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>{p.pharmacie}</div>
+              {p.adresse && <div style={{ fontSize: 13, opacity: 0.9, marginTop: 2 }}>📍 {p.adresse}</div>}
+              {p.recurrence === "le 15 du mois" && <div style={{ fontSize: 12, marginTop: 4, background: "rgba(255,255,255,0.3)", borderRadius: 6, padding: "2px 8px", display: "inline-block" }}>Chaque 15 du mois</div>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Programme hebdomadaire fixe */}
+      {hebdo.length > 0 && (
+        <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 16 }}>
+          <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210", fontSize: 15 }}>
+            📅 Programme hebdomadaire fixe
+          </div>
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+            {joursHebdo.map(jour => {
+              const animsJour = hebdo.filter(p => p.jour === jour);
+              if (animsJour.length === 0) return null;
+              const c = couleurJour(jour);
+              return (
+                <div key={jour} style={{ borderRadius: 12, border: "2px solid " + c.border, background: c.bg, overflow: "hidden" }}>
+                  <div style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: c.dot, flexShrink: 0 }} />
+                    <div style={{ fontWeight: 800, fontSize: 14, color: jour === jourAujourdhui ? "#744210" : "#2d3748", flex: 1 }}>
+                      {jour}
+                      {jour === jourAujourdhui && <span style={{ marginLeft: 8, fontSize: 11, background: "#d69e2e", color: "white", padding: "2px 8px", borderRadius: 20, fontWeight: 700 }}>Aujourd'hui</span>}
+                    </div>
+                  </div>
+                  {animsJour.map((p, i) => (
+                    <div key={i} style={{ padding: "8px 16px 12px 36px", borderTop: i === 0 ? "1px solid " + c.border : "none" }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: "#1a365d" }}>🏥 {p.pharmacie}</div>
+                      {p.adresse && <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>📍 {p.adresse}</div>}
+                      {p.recurrence === "le 15 du mois" && (
+                        <div style={{ fontSize: 11, color: "#744210", fontWeight: 700, marginTop: 4 }}>⚡ Chaque 15 du mois uniquement</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Programme ponctuel */}
+      {ponctuel.length > 0 && (
+        <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+          <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#2b6cb0", fontSize: 15 }}>
+            🗓️ Programme détaillé
+          </div>
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+            {ponctuel.map((p, i) => (
+              <div key={i} style={{ borderRadius: 12, border: "1.5px solid #e2e8f0", background: "#f7fafc", padding: "12px 16px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <div style={{ background: "#2b6cb0", color: "white", borderRadius: 8, padding: "6px 10px", fontWeight: 800, fontSize: 11, whiteSpace: "nowrap", flexShrink: 0 }}>{p.jour}</div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#1a365d" }}>🏥 {p.pharmacie}</div>
+                  {p.adresse && <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>📍 {p.adresse}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// PROGRAMMES D'ANIMATION COMMERCIALE
+// ═══════════════════════════════════════════════
+const PROGRAMMES = {
+  "ANNE N'GORAN": [
+    { jour: "Lundi",    pharmacie: "Pharmacie Plaque Anador",      adresse: "",         recurrence: "hebdo" },
+    { jour: "Mardi",    pharmacie: "Pharmacie Toit Rouge",         adresse: "Yopougon", recurrence: "hebdo" },
+    { jour: "Mercredi", pharmacie: "Pharmacie Longchamp",          adresse: "",         recurrence: "hebdo" },
+    { jour: "Mercredi", pharmacie: "Pharmacie Miria",              adresse: "",         recurrence: "le 15 du mois" },
+    { jour: "Jeudi",    pharmacie: "Pharmacie Dunia",              adresse: "",         recurrence: "hebdo" },
+    { jour: "Vendredi", pharmacie: "Pharmacie La Me",              adresse: "",         recurrence: "hebdo" },
+  ],
+  "TIE LOU CLAUDINE": [
+    { jour: "Lun 02/02", pharmacie: "Pharmacie Samaké",            adresse: "",         recurrence: "sem 1" },
+    { jour: "Mar 03/02", pharmacie: "Pharmacie Samaké",            adresse: "",         recurrence: "sem 1" },
+    { jour: "Mer 04/02", pharmacie: "Pharmacie Samaké",            adresse: "",         recurrence: "sem 1" },
+    { jour: "Jeu 05/02", pharmacie: "Pharmacie Samaké",            adresse: "",         recurrence: "sem 1" },
+    { jour: "Ven 06/02", pharmacie: "Pharmacie Samaké",            adresse: "",         recurrence: "sem 1" },
+    { jour: "Lun 09/02", pharmacie: "Pharmacie Lycée Technique",   adresse: "",         recurrence: "ponctuel" },
+    { jour: "Mar 10/02", pharmacie: "Pharmacie Saint Odile",       adresse: "Plateau Dokui", recurrence: "ponctuel" },
+    { jour: "Mer 11/02", pharmacie: "Pharmacie Saint Odile",       adresse: "Plateau Dokui", recurrence: "ponctuel" },
+    { jour: "Ven 13/02", pharmacie: "Pharmacie Las Palmas",        adresse: "",         recurrence: "ponctuel" },
+    { jour: "Lun 16/02", pharmacie: "Pharmacie Plaque Anador",     adresse: "",         recurrence: "ponctuel" },
+    { jour: "Mar 17/02", pharmacie: "Pharmacie Samaké",            adresse: "",         recurrence: "ponctuel" },
+    { jour: "Mer 18/02", pharmacie: "Pharmacie Samaké",            adresse: "",         recurrence: "ponctuel" },
+    { jour: "Jeu 19/02", pharmacie: "Pharmacie 8ème Tranche",      adresse: "",         recurrence: "ponctuel" },
+    { jour: "Ven 20/02", pharmacie: "Pharmacie Samaké",            adresse: "",         recurrence: "ponctuel" },
+  ],
+  "AICHA DIALLO": [
+    { jour: "Lundi",    pharmacie: "Pharmacie Lycée Technique",    adresse: "",         recurrence: "hebdo" },
+    { jour: "Mardi",    pharmacie: "Pharmacie Val d\'Oise",        adresse: "",         recurrence: "hebdo" },
+    { jour: "Mercredi", pharmacie: "Pharmacie Lamè",               adresse: "",         recurrence: "hebdo" },
+    { jour: "Jeudi",    pharmacie: "Pharmacie 8ème Tranche",       adresse: "",         recurrence: "hebdo" },
+    { jour: "Vendredi", pharmacie: "Pharmacie Angré / Charisma",   adresse: "Angré",    recurrence: "hebdo" },
+  ],
+};
+
+const JOURS_ORDRE = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"];
+
+function getProgrammeCommerciale(nom) {
+  return PROGRAMMES[nom] || [];
+}
+
+function getJourSemaine() {
+  const jours = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+  return jours[new Date().getDay()];
+}
+
 function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
   const [form, setForm] = useState(emptyForm());
   const [submitted, setSubmitted] = useState(false);
@@ -346,13 +494,17 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
           <button onClick={onLogout} style={{ padding: "7px 16px", borderRadius: 8, border: "1.5px solid rgba(255,255,255,0.6)", background: "transparent", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Deconnexion</button>
         </div>
         <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 20px", display: "flex", gap: 4 }}>
-          {[{ id: "rapport", label: "Rapport" }, { id: "stock", label: "Stock pharmacies" }].map(t => (
+          {[{ id: "programme", label: "Mon programme" }, { id: "rapport", label: "Rapport" }, { id: "stock", label: "Stock pharmacies" }].map(t => (
             <button key={t.id} onClick={() => setCommTab(t.id)} style={{ padding: "9px 18px", border: "none", background: commTab === t.id ? "white" : "transparent", color: commTab === t.id ? "#2b6cb0" : "rgba(255,255,255,0.85)", fontWeight: 700, fontSize: 13, cursor: "pointer", borderRadius: "8px 8px 0 0" }}>{t.label}</button>
           ))}
         </div>
       </div>
 
       <div style={{ maxWidth: 720, margin: "0 auto", padding: 20 }}>
+        {commTab === "programme" && (
+          <ProgrammeAnimation user={user} />
+        )}
+
         {commTab === "stock" && (
           <StockCommerciale pharmacies={pharmacies} />
         )}
