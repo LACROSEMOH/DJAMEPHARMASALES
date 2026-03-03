@@ -36,12 +36,8 @@ const ADMINS = [
 // ═══════════════════════════════════════════════
 // DÉLÉGUÉS MÉDICAUX — À personnaliser
 // ═══════════════════════════════════════════════
-const DELEGUES = [
-  { nom: "OUATTARA YASMINE", pass: "OUDJAME11" },
-  { nom: "DOUCOURE ASSITA", pass: "DOUDJAME12" },
-  { nom: "FUTURE DELEGUE1", pass: "DELEG03" },
-  { nom: "FUTURE DELEGUE2", pass: "DELEG04" },
-];
+// Delegues charges depuis Firebase — modifiables sans toucher au code
+let DELEGUES = []; // sera rempli au chargement
 
 // Clé Google Maps — À remplacer par votre vraie clé
 const GOOGLE_MAPS_KEY = "AIzaSyBuDzS8HMaADCuspI4fICayTiSyR8uu1sM";
@@ -149,7 +145,7 @@ const tdS = { padding: "10px 14px", borderBottom: "1px solid #edf2f7", verticalA
 // ═══════════════════════════════════════════════
 // ÉCRAN DE CONNEXION
 // ═══════════════════════════════════════════════
-function LoginScreen({ onLogin }) {
+function LoginScreen({ onLogin, deleguesDB }) {
   const [role, setRole] = useState(null);
   const [nom, setNom] = useState("");
   const [pass, setPass] = useState("");
@@ -260,7 +256,7 @@ function LoginScreen({ onLogin }) {
                 <label style={lS}>Votre nom</label>
                 <select value={nom} onChange={e => setNom(e.target.value)} style={iS}>
                   <option value="">-- Sélectionnez votre nom --</option>
-                  {DELEGUES.map(d => <option key={d.nom}>{d.nom}</option>)}
+                  {(deleguesDB.length > 0 ? deleguesDB : DELEGUES).map(d => <option key={d.nom}>{d.nom}</option>)}
                 </select>
               </div>
               <div>
@@ -269,7 +265,8 @@ function LoginScreen({ onLogin }) {
                   <input type={showPass ? "text" : "password"} placeholder="••••••••" value={pass} onChange={e => setPass(e.target.value)}
                     onKeyDown={e => {
                       if (e.key === "Enter") {
-                        const found = DELEGUES.find(d => d.nom === nom && d.pass === pass);
+                        const list = deleguesDB.length > 0 ? deleguesDB : DELEGUES;
+                        const found = list.find(d => d.nom === nom && d.pass === pass);
                         if (found) { setError(""); onLogin({ role: "delegue", nom: found.nom }); }
                         else setError("Nom ou mot de passe incorrect.");
                       }
@@ -280,7 +277,8 @@ function LoginScreen({ onLogin }) {
               </div>
               {error && <div style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 8, padding: "10px 14px", color: "#e53e3e", fontSize: 13 }}>⚠️ {error}</div>}
               <button onClick={() => {
-                const found = DELEGUES.find(d => d.nom === nom && d.pass === pass);
+                const list2 = deleguesDB.length > 0 ? deleguesDB : DELEGUES;
+                const found = list2.find(d => d.nom === nom && d.pass === pass);
                 if (found) { setError(""); onLogin({ role: "delegue", nom: found.nom }); }
                 else setError("Nom ou mot de passe incorrect.");
               }} style={{ padding: "13px", background: "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer" }}>
@@ -303,6 +301,8 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
   const [form, setForm] = useState(emptyForm());
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [formDelegue, setFormDelegue] = useState({ nom: "", pass: "" });
+  const [editDelegueId, setEditDelegueId] = useState(null);
   const [commTab, setCommTab] = useState("rapport");
 
   const mesVentes = sales.filter(s => s.commerciale === user.nom);
@@ -455,7 +455,7 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
 // ═══════════════════════════════════════════════
 // INTERFACE DELEGUE MEDICAL
 // ═══════════════════════════════════════════════
-function DelegueInterface({ user, tournees, rapportsVisite, onSubmitVisite, onLogout }) {
+function DelegueInterface({ user, tournees, rapportsVisite, onSubmitVisite, onLogout, deleguesDB }) {
   const [activeTab, setActiveTab] = useState("tournee");
   const [selectedPharmacie, setSelectedPharmacie] = useState(null);
   const [showRapportModal, setShowRapportModal] = useState(false);
@@ -927,7 +927,7 @@ fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent('${zo
 // ═══════════════════════════════════════════════
 // PANEL ADMIN — GESTION DELEGUES
 // ═══════════════════════════════════════════════
-function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDeleteTournee, pharmacies, onAddPharmacie, user }) {
+function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDeleteTournee, pharmacies, onAddPharmacie, user, deleguesDB }) {
   const [view, setView] = useState("dashboard");
   const [selectedDelegue, setSelectedDelegue] = useState(null);
   const [formTournee, setFormTournee] = useState({ delegue: "", pharmacie: "", ville: "", adresse: "", date: new Date().toISOString().split("T")[0], notes: "" });
@@ -953,7 +953,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
     return () => unsub();
   }, []);
 
-  const statsByDelegue = DELEGUES.map(d => {
+  const statsByDelegue = (deleguesDB.length > 0 ? deleguesDB : DELEGUES).map(d => {
     const mesT = tournees.filter(t => t.delegue === d.nom);
     const mesR = rapportsVisite.filter(r => r.delegue === d.nom);
     const today = mesT.filter(t => t.date === todayStr);
@@ -1108,6 +1108,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
           { id: "assigner", label: "Assigner une tournee" + (selectedForAssign.length > 0 ? " (" + selectedForAssign.length + ")" : "") },
           { id: "recherche", label: "Rechercher des pharmacies" },
           { id: "rapports", label: "Rapports de visite" },
+          ...(user && user.nom === "MOHAMED KONE YASSINE" ? [{ id: "gestion", label: "Gerer les delegues" }] : []),
         ].map(v => (
           <button key={v.id} onClick={() => setView(v.id)} style={{
             padding: "9px 18px", borderRadius: 8, border: "none",
@@ -1391,7 +1392,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
                 <label style={lS}>Delegue medical *</label>
                 <select value={assignDelegue} onChange={e => setAssignDelegue(e.target.value)} style={iS}>
                   <option value="">-- Choisir un delegue --</option>
-                  {DELEGUES.map(d => <option key={d.nom}>{d.nom}</option>)}
+                  {(deleguesDB.length > 0 ? deleguesDB : DELEGUES).map(d => <option key={d.nom}>{d.nom}</option>)}
                 </select>
               </div>
               <div>
@@ -1431,9 +1432,9 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
             <div style={{ fontWeight: 800, fontSize: 15, color: "#744210", flex: 1 }}>Rapports de visite</div>
             <select value={selectedDelegue || ""} onChange={e => setSelectedDelegue(e.target.value || null)} style={{ ...iS, width: "auto", minWidth: 180 }}>
               <option value="">Tous les delegues</option>
-              {DELEGUES.map(d => <option key={d.nom}>{d.nom}</option>)}
+              {(deleguesDB.length > 0 ? deleguesDB : DELEGUES).map(d => <option key={d.nom}>{d.nom}</option>)}
             </select>
-            {user && user.login === "MOHAMED KONE YASSINE" && (
+            {user && user.nom === "MOHAMED KONE YASSINE" && (
               <>
                 <button onClick={async () => {
                   if (!window.confirm("Fusionner AICHA LACROSE -> AICHA DIALLO dans toutes les ventes ?")) return;
@@ -1508,6 +1509,86 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
           })()}
         </div>
       )}
+      {/* ── GESTION DELEGUES (YASSINE only) ── */}
+      {view === "gestion" && user && user.nom === "MOHAMED KONE YASSINE" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "flex-start" }}>
+          <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: "#744210", marginBottom: 20 }}>
+              {editDelegueId ? "Modifier le delegue" : "Ajouter un delegue"}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={lS}>Nom complet *</label>
+                <input placeholder="Ex: KONE IBRAHIM" value={formDelegue.nom} onChange={e => setFormDelegue(f => ({...f, nom: e.target.value.toUpperCase()}))} style={iS} />
+              </div>
+              <div>
+                <label style={lS}>Mot de passe *</label>
+                <input placeholder="Ex: IBRA2026" value={formDelegue.pass} onChange={e => setFormDelegue(f => ({...f, pass: e.target.value}))} style={iS} />
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                {editDelegueId && <button onClick={() => { setFormDelegue({ nom: "", pass: "" }); setEditDelegueId(null); }} style={{ flex: 1, padding: "11px", background: "#edf2f7", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}>Annuler</button>}
+                <button onClick={async () => {
+                  if (!formDelegue.nom.trim() || !formDelegue.pass.trim()) return alert("Nom et mot de passe obligatoires.");
+                  setSaving(true);
+                  try {
+                    const data = { nom: formDelegue.nom.trim(), pass: formDelegue.pass.trim(), ordre: deleguesDB.length + 1 };
+                    if (editDelegueId) { await updateDoc(doc(db, "deleguesConfig", editDelegueId), data); alert("Delegue mis a jour !"); }
+                    else { await addDoc(collection(db, "deleguesConfig"), data); alert("Delegue ajoute !"); }
+                    setFormDelegue({ nom: "", pass: "" }); setEditDelegueId(null);
+                  } catch(e) { alert("Erreur: " + e.message); }
+                  setSaving(false);
+                }} disabled={saving} style={{ flex: 2, padding: "11px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+                  {saving ? "..." : editDelegueId ? "Mettre a jour" : "Ajouter"}
+                </button>
+              </div>
+              {deleguesDB.length === 0 && (
+                <button onClick={async () => {
+                  if (!window.confirm("Initialiser 4 delegues par defaut ?")) return;
+                  const defaults = [
+                    { nom: "DELEGUE 1", pass: "DELEG01", ordre: 1 },
+                    { nom: "DELEGUE 2", pass: "DELEG02", ordre: 2 },
+                    { nom: "DELEGUE 3", pass: "DELEG03", ordre: 3 },
+                    { nom: "DELEGUE 4", pass: "DELEG04", ordre: 4 },
+                  ];
+                  await Promise.all(defaults.map(d => addDoc(collection(db, "deleguesConfig"), d)));
+                  alert("4 delegues initialises ! Modifiez leurs noms et mots de passe.");
+                }} style={{ padding: "10px", background: "#fffff0", color: "#744210", border: "2px dashed #d69e2e", borderRadius: 10, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+                  Initialiser avec 4 delegues par defaut
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210" }}>
+              Delegues actifs ({deleguesDB.length})
+            </div>
+            {deleguesDB.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40, color: "#a0aec0" }}>
+                <div style={{ fontSize: 36 }}>👤</div>
+                <div style={{ marginTop: 10 }}>Aucun delegue configure.</div>
+              </div>
+            ) : (
+              deleguesDB.map(d => (
+                <div key={d.id} style={{ padding: "14px 20px", borderBottom: "1px solid #f7fafc", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: "#1a365d" }}>{d.nom}</div>
+                    <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>Mot de passe : <b style={{ color: "#744210" }}>{d.pass}</b></div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => { setFormDelegue({ nom: d.nom, pass: d.pass }); setEditDelegueId(d.id); }} style={{ padding: "6px 12px", background: "#fffff0", border: "1px solid #d69e2e", borderRadius: 7, cursor: "pointer", fontWeight: 700, fontSize: 12, color: "#744210" }}>Modifier</button>
+                    <button onClick={async () => {
+                      if (!window.confirm("Supprimer " + d.nom + " ?")) return;
+                      try { await deleteDoc(doc(db, "deleguesConfig", d.id)); } catch(e) { alert("Erreur."); }
+                    }} style={{ padding: "6px 10px", background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 7, cursor: "pointer", color: "#e53e3e", fontSize: 12 }}>X</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -1842,7 +1923,7 @@ function StockCommerciale({ pharmacies }) {
   );
 }
 
-function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, pharmacies, onAddPharmacie, onDeletePharmacie, onAddLivraison, onDeletePharmacieProduit, tournees, rapportsVisite, onCreateTournee, onDeleteTournee }) {
+function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, pharmacies, onAddPharmacie, onDeletePharmacie, onAddLivraison, onDeletePharmacieProduit, tournees, rapportsVisite, onCreateTournee, onDeleteTournee, deleguesDB }) {
   const [filterComm, setFilterComm] = useState("Toutes");
   const [filterDate, setFilterDate] = useState("");
   const [activeTab, setActiveTab] = useState("apercu"); // apercu | semaine | mois | produits | stats
@@ -2204,6 +2285,7 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, 
                 pharmacies={pharmacies}
                 onAddPharmacie={onAddPharmacie}
                 user={user}
+                deleguesDB={deleguesDB}
               />
             )}
 
@@ -2305,6 +2387,7 @@ export default function App() {
   const [pharmacies, setPharmacies] = useState([]);
   const [tournees, setTournees] = useState([]);
   const [rapportsVisite, setRapportsVisite] = useState([]);
+  const [deleguesDB, setDeleguesDB] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Écoute ventes en temps réel
@@ -2343,6 +2426,18 @@ export default function App() {
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "tournees"), (snap) => {
       setTournees(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  // Charge les delegues depuis Firebase
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "deleguesConfig"), (snap) => {
+      if (snap.docs.length > 0) {
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.ordre||0)-(b.ordre||0));
+        DELEGUES = list;
+        setDeleguesDB(list);
+      }
     });
     return () => unsub();
   }, []);
@@ -2462,10 +2557,10 @@ export default function App() {
     } catch(e) { alert("Erreur de suppression."); }
   };
 
-  if (!user) return <LoginScreen onLogin={setUser} />;
+  if (!user) return <LoginScreen onLogin={setUser} deleguesDB={deleguesDB} />;
   if (user.role === "commerciale")
     return <CommercialInterface user={user} sales={sales} pharmacies={pharmacies} onSubmit={handleNewSale} onLogout={() => setUser(null)} />;
   if (user.role === "delegue")
-    return <DelegueInterface user={user} tournees={tournees} rapportsVisite={rapportsVisite} onSubmitVisite={handleSubmitVisite} onLogout={() => setUser(null)} />;
-  return <AdminInterface sales={sales} onDelete={handleDelete} onResetAll={handleResetAll} onLogout={() => setUser(null)} user={user} loading={loading} pharmacies={pharmacies} onAddPharmacie={handleAddPharmacie} onDeletePharmacie={handleDeletePharmacie} onAddLivraison={handleAddLivraison} onDeletePharmacieProduit={handleDeletePharmacieProduit} tournees={tournees} rapportsVisite={rapportsVisite} onCreateTournee={handleCreateTournee} onDeleteTournee={handleDeleteTournee} />;
+    return <DelegueInterface user={user} tournees={tournees} rapportsVisite={rapportsVisite} onSubmitVisite={handleSubmitVisite} onLogout={() => setUser(null)} deleguesDB={deleguesDB} />;
+  return <AdminInterface sales={sales} onDelete={handleDelete} onResetAll={handleResetAll} onLogout={() => setUser(null)} user={user} loading={loading} pharmacies={pharmacies} onAddPharmacie={handleAddPharmacie} onDeletePharmacie={handleDeletePharmacie} onAddLivraison={handleAddLivraison} onDeletePharmacieProduit={handleDeletePharmacieProduit} tournees={tournees} rapportsVisite={rapportsVisite} onCreateTournee={handleCreateTournee} onDeleteTournee={handleDeleteTournee} deleguesDB={deleguesDB} />;
 }
