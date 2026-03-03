@@ -302,6 +302,27 @@ function LoginScreen({ onLogin }) {
 // INTERFACE COMMERCIALE
 // ═══════════════════════════════════════════════
 // ═══════════════════════════════════════════════
+// PROGRAMMES FIXES — ANNE et AICHA uniquement
+// ═══════════════════════════════════════════════
+const PROGRAMMES_FIXES = {
+  "ANNE N'GORAN": [
+    { jour: "Lundi",    pharmacie: "Pharmacie Plaque Anador",    adresse: "" },
+    { jour: "Mardi",    pharmacie: "Pharmacie Toit Rouge",       adresse: "Yopougon" },
+    { jour: "Mercredi", pharmacie: "Pharmacie Longchamp",        adresse: "" },
+    { jour: "Mercredi", pharmacie: "Pharmacie Miria",            adresse: "", note: "Chaque 15 du mois" },
+    { jour: "Jeudi",    pharmacie: "Pharmacie Dunia",            adresse: "" },
+    { jour: "Vendredi", pharmacie: "Pharmacie La Me",            adresse: "" },
+  ],
+  "AICHA DIALLO": [
+    { jour: "Lundi",    pharmacie: "Pharmacie Lycée Technique",  adresse: "" },
+    { jour: "Mardi",    pharmacie: "Pharmacie Val d'Oise",       adresse: "" },
+    { jour: "Mercredi", pharmacie: "Pharmacie Lamè",             adresse: "" },
+    { jour: "Jeudi",    pharmacie: "Pharmacie 8ème Tranche",     adresse: "" },
+    { jour: "Vendredi", pharmacie: "Pharmacie Angré / Charisma", adresse: "Angré" },
+  ],
+};
+
+// ═══════════════════════════════════════════════
 // COMPOSANT PROGRAMME ANIMATION
 // ═══════════════════════════════════════════════
 function ProgrammeAnimation({ user }) {
@@ -309,6 +330,8 @@ function ProgrammeAnimation({ user }) {
   const JOURS = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
   const [anims, setAnims] = useState([]);
   const [semaineSel, setSemaineSel] = useState("");
+
+  const programmeFixe = PROGRAMMES_FIXES[user.nom] || [];
 
   const getSemaineLundi = (offset = 0) => {
     const d = new Date();
@@ -338,40 +361,70 @@ function ProgrammeAnimation({ user }) {
 
   return (
     <div>
+      {/* Navigation semaine pour les animations assignées par l'admin */}
       <div style={{ background: "white", borderRadius: 14, padding: "12px 16px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
         <button onClick={() => setSemaineSel(getSemaineLundi(-1))} style={{ padding: "7px 12px", background: "#f7fafc", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>←</button>
         <div style={{ flex: 1, textAlign: "center", fontWeight: 800, color: "#744210", fontSize: 13 }}>{formatSemaine(semaineSel)}</div>
         <button onClick={() => setSemaineSel(curLundi)} style={{ padding: "7px 10px", background: "#fffff0", border: "1px solid #d69e2e", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 11, color: "#744210" }}>Auj.</button>
         <button onClick={() => setSemaineSel(getSemaineLundi(1))} style={{ padding: "7px 12px", background: "#f7fafc", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>→</button>
       </div>
-      {semaineSel === curLundi && animsSemaine.filter(a => a.jour === jourAujourdhui).length > 0 && (
-        <div style={{ background: "linear-gradient(135deg,#744210,#d69e2e)", borderRadius: 14, padding: 18, marginBottom: 14, color: "white" }}>
-          <div style={{ fontWeight: 900, fontSize: 15, marginBottom: 8 }}>📍 Aujourd'hui — {jourAujourdhui}</div>
-          {animsSemaine.filter(a => a.jour === jourAujourdhui).map(a => (
-            <div key={a.id} style={{ background: "rgba(255,255,255,0.2)", borderRadius: 10, padding: "10px 14px", marginTop: 6 }}>
-              <div style={{ fontWeight: 800, fontSize: 14 }}>🏥 {a.pharmacie}</div>
-              {a.adresse && <div style={{ fontSize: 12, opacity: 0.9, marginTop: 2 }}>📍 {a.adresse}</div>}
-              {a.notes && <div style={{ fontSize: 12, marginTop: 4, opacity: 0.85, fontStyle: "italic" }}>{a.notes}</div>}
-            </div>
-          ))}
+
+      {/* Aujourd'hui highlight */}
+      {(() => {
+        const fixeAuj = programmeFixe.filter(p => p.jour === jourAujourdhui);
+        const animAuj = semaineSel === curLundi ? animsSemaine.filter(a => a.jour === jourAujourdhui) : [];
+        if (fixeAuj.length === 0 && animAuj.length === 0) return null;
+        return (
+          <div style={{ background: "linear-gradient(135deg,#744210,#d69e2e)", borderRadius: 14, padding: 18, marginBottom: 14, color: "white" }}>
+            <div style={{ fontWeight: 900, fontSize: 15, marginBottom: 8 }}>📍 Aujourd'hui — {jourAujourdhui}</div>
+            {[...fixeAuj.map(p => ({ pharmacie: p.pharmacie, adresse: p.adresse, note: p.note, type: "fixe" })),
+              ...animAuj.map(a => ({ pharmacie: a.pharmacie, adresse: a.adresse, note: a.notes, type: "admin" }))
+            ].map((item, i) => (
+              <div key={i} style={{ background: "rgba(255,255,255,0.2)", borderRadius: 10, padding: "10px 14px", marginTop: 6 }}>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>🏥 {item.pharmacie}</div>
+                {item.adresse && <div style={{ fontSize: 12, opacity: 0.9, marginTop: 2 }}>📍 {item.adresse}</div>}
+                {item.note && <div style={{ fontSize: 11, marginTop: 3, background: "rgba(255,255,255,0.3)", padding: "2px 8px", borderRadius: 10, display: "inline-block" }}>{item.note}</div>}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {/* Programme fixe hebdomadaire */}
+      {programmeFixe.length > 0 && (
+        <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 14 }}>
+          <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210", fontSize: 14 }}>
+            📅 Programme fixe hebdomadaire
+          </div>
+          <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+            {JOURS.filter(j => programmeFixe.some(p => p.jour === j)).map(jour => {
+              const isToday = jour === jourAujourdhui;
+              return programmeFixe.filter(p => p.jour === jour).map((p, i) => (
+                <div key={jour+i} style={{ borderRadius: 12, border: "2px solid", borderColor: isToday ? "#d69e2e" : "#e2e8f0", background: isToday ? "#fffff0" : "#f7fafc", padding: "12px 16px" }}>
+                  <span style={{ fontWeight: 800, fontSize: 11, color: isToday ? "#744210" : "#2b6cb0", background: isToday ? "#fefcbf" : "#ebf4ff", padding: "2px 10px", borderRadius: 20 }}>
+                    {jour}{isToday ? " ★ Aujourd'hui" : ""}
+                  </span>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#1a365d", marginTop: 6 }}>🏥 {p.pharmacie}</div>
+                  {p.adresse && <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>📍 {p.adresse}</div>}
+                  {p.note && <div style={{ fontSize: 11, color: "#744210", fontWeight: 700, marginTop: 4 }}>⚡ {p.note}</div>}
+                </div>
+              ));
+            })}
+          </div>
         </div>
       )}
-      {animsSemaine.length === 0 ? (
-        <div style={{ background: "white", borderRadius: 14, padding: 40, textAlign: "center", color: "#a0aec0", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
-          <div style={{ fontSize: 40 }}>📅</div>
-          <div style={{ marginTop: 12, fontWeight: 700 }}>Aucune animation pour cette semaine</div>
-          <div style={{ fontSize: 13, marginTop: 6 }}>Votre admin vous assignera des pharmacies</div>
-        </div>
-      ) : (
+
+      {/* Animations assignées par l'admin cette semaine */}
+      {animsSemaine.length > 0 && (
         <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
-          <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210", fontSize: 14 }}>
-            {animsSemaine.length} animation(s) cette semaine
+          <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#2b6cb0", fontSize: 14 }}>
+            📌 Animations assignées — {animsSemaine.length} cette semaine
           </div>
           <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
             {JOURS.map(jour => animsSemaine.filter(a => a.jour === jour).map(a => {
               const isToday = jour === jourAujourdhui && semaineSel === curLundi;
               return (
-                <div key={a.id} style={{ borderRadius: 12, border: "2px solid", borderColor: isToday ? "#d69e2e" : "#e2e8f0", background: isToday ? "#fffff0" : "#f7fafc", padding: "12px 16px" }}>
+                <div key={a.id} style={{ borderRadius: 12, border: "2px solid", borderColor: isToday ? "#d69e2e" : "#bee3f8", background: isToday ? "#fffff0" : "#ebf4ff", padding: "12px 16px" }}>
                   <span style={{ fontWeight: 800, fontSize: 11, color: isToday ? "#744210" : "#2b6cb0", background: isToday ? "#fefcbf" : "#ebf4ff", padding: "2px 10px", borderRadius: 20 }}>
                     {jour}{isToday ? " ★ Aujourd'hui" : ""}
                   </span>
@@ -382,6 +435,14 @@ function ProgrammeAnimation({ user }) {
               );
             }))}
           </div>
+        </div>
+      )}
+
+      {programmeFixe.length === 0 && animsSemaine.length === 0 && (
+        <div style={{ background: "white", borderRadius: 14, padding: 40, textAlign: "center", color: "#a0aec0", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+          <div style={{ fontSize: 40 }}>📅</div>
+          <div style={{ marginTop: 12, fontWeight: 700 }}>Aucune animation pour cette semaine</div>
+          <div style={{ fontSize: 13, marginTop: 6 }}>Votre admin vous assignera des pharmacies</div>
         </div>
       )}
     </div>
