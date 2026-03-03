@@ -24,7 +24,7 @@ const db = getFirestore(firebaseApp);
 const COMMERCIALES = [
   { nom: "ANNE N'GORAN",      pass: "ANNEDJAME11" },
   { nom: "TIE LOU CLAUDINE",  pass: "LOUDJAME12" },
-  { nom: "AICHA LACROSE",     pass: "AICHADJAME13" },
+  { nom: "AICHA DIALLO",     pass: "AICHADJAME13" },
   { nom: "ANNIMATRICE1",      pass: "ANIMDJAME14" },
   { nom: "ANNIMATRICE2",      pass: "ANIMDJAME15" },
 ];
