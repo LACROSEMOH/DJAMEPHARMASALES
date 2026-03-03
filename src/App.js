@@ -309,6 +309,24 @@ function ProgrammeAnimation({ user }) {
   const jourAujourdhui = getJourSemaine();
   const joursHebdo = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi"];
 
+  const [animsFirebase, setAnimsFirebase] = useState([]);
+
+  const getSemaineLundi = () => {
+    const d = new Date();
+    const day = d.getDay() || 7;
+    d.setDate(d.getDate() - day + 1);
+    return d.toISOString().split("T")[0];
+  };
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "animationsComm"), (snap) => {
+      const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const mySemaine = getSemaineLundi();
+      setAnimsFirebase(all.filter(a => a.commerciale === user.nom && a.semaine === mySemaine));
+    });
+    return () => unsub();
+  }, [user.nom]);
+
   // Séparer hebdo et ponctuel
   const hebdo = programme.filter(p => p.recurrence === "hebdo" || p.recurrence === "le 15 du mois");
   const ponctuel = programme.filter(p => p.recurrence !== "hebdo" && p.recurrence !== "le 15 du mois");
@@ -339,6 +357,32 @@ function ProgrammeAnimation({ user }) {
               {p.recurrence === "le 15 du mois" && <div style={{ fontSize: 12, marginTop: 4, background: "rgba(255,255,255,0.3)", borderRadius: 6, padding: "2px 8px", display: "inline-block" }}>Chaque 15 du mois</div>}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Animations assignees cette semaine par l'admin */}
+      {animsFirebase.length > 0 && (
+        <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 16 }}>
+          <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#2b6cb0", fontSize: 15 }}>
+            📌 Animations assignées cette semaine
+          </div>
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+            {["Lundi","Mardi","Mercredi","Jeudi","Vendredi"].map(jour => {
+              const anims = animsFirebase.filter(a => a.jour === jour);
+              if (anims.length === 0) return null;
+              const isToday = jour === jourAujourdhui;
+              return anims.map((a, i) => (
+                <div key={a.id} style={{ borderRadius: 12, border: "2px solid", borderColor: isToday ? "#d69e2e" : "#bee3f8", background: isToday ? "#fffff0" : "#ebf4ff", padding: "12px 16px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontWeight: 800, fontSize: 12, color: isToday ? "#744210" : "#2b6cb0" }}>{jour}{isToday ? " — Aujourd'hui" : ""}</span>
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#1a365d", marginTop: 4 }}>🏥 {a.pharmacie}</div>
+                  {a.adresse && <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>📍 {a.adresse}</div>}
+                  {a.notes && <div style={{ fontSize: 12, color: "#744210", marginTop: 4, fontStyle: "italic" }}>{a.notes}</div>}
+                </div>
+              ));
+            })}
+          </div>
         </div>
       )}
 
@@ -2484,12 +2528,267 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, 
                 </div>
               </>
             )}
+
+            {/* ── ONGLET ANIMATIONS COMMERCIALES ── */}
+            {activeTab === "animations" && (
+              <AnimationsAdmin sales={sales} />
+            )}
+            )}
           </>
         )}
       </div>
     </div>
   );
 }
+
+// ═══════════════════════════════════════════════
+// ADMIN — GESTION ANIMATIONS COMMERCIALES
+// ═══════════════════════════════════════════════
+function AnimationsAdmin({ sales }) {
+  const COMM_NAMES = ["ANNE N'GORAN", "TIE LOU CLAUDINE", "AICHA DIALLO", "ANNIMATRICE1", "ANNIMATRICE2"];
+  const JOURS = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+
+  const [view, setView] = useState("calendrier");
+  const [programmes, setProgrammes] = useState({});
+  const [loadingProg, setLoadingProg] = useState(true);
+  const [formAnim, setFormAnim] = useState({ commerciale: "", semaine: "", jour: "", pharmacie: "", adresse: "", notes: "" });
+  const [savingAnim, setSavingAnim] = useState(false);
+  const [filterComm, setFilterComm] = useState("");
+
+  // Semaine courante
+  const getSemaineLundi = (offset = 0) => {
+    const d = new Date();
+    const day = d.getDay() || 7;
+    d.setDate(d.getDate() - day + 1 + offset * 7);
+    return d.toISOString().split("T")[0];
+  };
+  const [semaineSel, setSemaineSel] = useState(getSemaineLundi(0));
+
+  const formatSemaine = (lundi) => {
+    if (!lundi) return "";
+    const d = new Date(lundi);
+    const fin = new Date(lundi);
+    fin.setDate(fin.getDate() + 4);
+    return "Semaine du " + d.toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) + " au " + fin.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  };
+
+  // Firebase listener
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "animationsComm"), (snap) => {
+      const data = {};
+      snap.docs.forEach(d => { data[d.id] = { id: d.id, ...d.data() }; });
+      setProgrammes(data);
+      setLoadingProg(false);
+    });
+    return () => unsub();
+  }, []);
+
+  const animsDeSemaine = Object.values(programmes).filter(a => a.semaine === semaineSel);
+  const animsFiltrees = filterComm ? animsDeSemaine.filter(a => a.commerciale === filterComm) : animsDeSemaine;
+
+  const handleSave = async () => {
+    if (!formAnim.commerciale || !formAnim.semaine || !formAnim.jour || !formAnim.pharmacie)
+      return alert("Commerciale, semaine, jour et pharmacie sont obligatoires.");
+    setSavingAnim(true);
+    try {
+      await addDoc(collection(db, "animationsComm"), {
+        ...formAnim,
+        createdAt: new Date().toISOString(),
+      });
+      setFormAnim({ commerciale: "", semaine: semaineSel, jour: "", pharmacie: "", adresse: "", notes: "" });
+      alert("Animation assignee !");
+    } catch(e) { alert("Erreur: " + e.message); }
+    setSavingAnim(false);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Supprimer cette animation ?")) return;
+    try { await deleteDoc(doc(db, "animationsComm", id)); } catch(e) {}
+  };
+
+  const coulJour = { "Lundi": "#ebf4ff", "Mardi": "#f0fff4", "Mercredi": "#fffff0", "Jeudi": "#faf5ff", "Vendredi": "#fff5f5", "Samedi": "#f0f4ff" };
+  const coulJourBorder = { "Lundi": "#bee3f8", "Mardi": "#9ae6b4", "Mercredi": "#f6e05e", "Jeudi": "#d6bcfa", "Vendredi": "#feb2b2", "Samedi": "#c3dafe" };
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+        {[{ id: "calendrier", label: "Calendrier" }, { id: "assigner", label: "+ Assigner une animation" }].map(v => (
+          <button key={v.id} onClick={() => setView(v.id)} style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: view === v.id ? "#744210" : "white", color: view === v.id ? "white" : "#4a5568", fontWeight: 700, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── CALENDRIER ── */}
+      {view === "calendrier" && (
+        <div>
+          {/* Navigation semaine */}
+          <div style={{ background: "white", borderRadius: 14, padding: 16, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <button onClick={() => setSemaineSel(getSemaineLundi(-1))} style={{ padding: "8px 14px", background: "#f7fafc", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>← Préc.</button>
+            <div style={{ flex: 1, textAlign: "center", fontWeight: 800, color: "#744210", fontSize: 15 }}>{formatSemaine(semaineSel)}</div>
+            <button onClick={() => setSemaineSel(getSemaineLundi(0))} style={{ padding: "8px 14px", background: "#fffff0", border: "1px solid #d69e2e", borderRadius: 8, cursor: "pointer", fontWeight: 700, color: "#744210", fontSize: 12 }}>Cette semaine</button>
+            <button onClick={() => setSemaineSel(getSemaineLundi(1))} style={{ padding: "8px 14px", background: "#f7fafc", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>Suiv. →</button>
+          </div>
+
+          {/* Filtre commerciale */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+            {["", ...COMM_NAMES].map(c => (
+              <button key={c} onClick={() => setFilterComm(c)} style={{ padding: "6px 14px", borderRadius: 20, border: "2px solid", borderColor: filterComm === c ? "#744210" : "#e2e8f0", background: filterComm === c ? "#744210" : "white", color: filterComm === c ? "white" : "#4a5568", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                {c || "Toutes"}
+              </button>
+            ))}
+          </div>
+
+          {loadingProg ? (
+            <div style={{ textAlign: "center", padding: 40, color: "#a0aec0" }}>Chargement...</div>
+          ) : animsDeSemaine.length === 0 ? (
+            <div style={{ background: "white", borderRadius: 14, padding: 40, textAlign: "center", color: "#a0aec0", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+              <div style={{ fontSize: 40 }}>📅</div>
+              <div style={{ marginTop: 12, fontWeight: 700 }}>Aucune animation pour cette semaine</div>
+              <button onClick={() => setView("assigner")} style={{ marginTop: 16, padding: "10px 24px", background: "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 800, cursor: "pointer" }}>
+                + Assigner des animations
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 14 }}>
+              {JOURS.map(jour => {
+                const anims = animsFiltrees.filter(a => a.jour === jour);
+                if (anims.length === 0) return null;
+                return (
+                  <div key={jour} style={{ background: coulJour[jour] || "white", borderRadius: 14, border: "2px solid " + (coulJourBorder[jour] || "#e2e8f0"), overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+                    <div style={{ padding: "12px 16px", fontWeight: 900, fontSize: 15, color: "#1a365d", borderBottom: "1px solid " + (coulJourBorder[jour] || "#e2e8f0") }}>
+                      {jour} <span style={{ fontSize: 12, fontWeight: 600, color: "#718096" }}>— {anims.length} animation(s)</span>
+                    </div>
+                    {anims.map(a => (
+                      <div key={a.id} style={{ padding: "12px 16px", borderBottom: "1px solid rgba(0,0,0,0.05)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 800, fontSize: 13, color: "#1a365d" }}>🏥 {a.pharmacie}</div>
+                          {a.adresse && <div style={{ fontSize: 12, color: "#718096", marginTop: 2 }}>📍 {a.adresse}</div>}
+                          <div style={{ marginTop: 4 }}>
+                            <span style={{ background: "#744210", color: "white", padding: "2px 8px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>{a.commerciale}</span>
+                          </div>
+                          {a.notes && <div style={{ fontSize: 12, color: "#718096", marginTop: 4, fontStyle: "italic" }}>{a.notes}</div>}
+                        </div>
+                        <button onClick={() => handleDelete(a.id)} style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 6, padding: "4px 8px", cursor: "pointer", color: "#e53e3e", fontSize: 11, flexShrink: 0 }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Programme fixe en bas */}
+          <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginTop: 20 }}>
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210", fontSize: 15 }}>
+              📋 Programmes fixes hebdomadaires
+            </div>
+            <div style={{ padding: 16, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+              {Object.entries(PROGRAMMES).map(([comm, prog]) => {
+                const hebdo = prog.filter(p => p.recurrence === "hebdo" || p.recurrence === "le 15 du mois");
+                if (hebdo.length === 0) return null;
+                return (
+                  <div key={comm} style={{ background: "#f7fafc", borderRadius: 12, padding: 14, border: "1px solid #e2e8f0" }}>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: "#744210", marginBottom: 8 }}>{comm}</div>
+                    {hebdo.map((p, i) => (
+                      <div key={i} style={{ fontSize: 12, color: "#4a5568", marginBottom: 4, display: "flex", gap: 6 }}>
+                        <span style={{ fontWeight: 700, color: "#2b6cb0", minWidth: 70 }}>{p.jour}</span>
+                        <span>{p.pharmacie}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ASSIGNER ── */}
+      {view === "assigner" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "flex-start" }}>
+          <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: "#744210", marginBottom: 20 }}>Assigner une animation</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={lS}>Commerciale *</label>
+                <select value={formAnim.commerciale} onChange={e => setFormAnim(f => ({...f, commerciale: e.target.value}))} style={iS}>
+                  <option value="">-- Choisir --</option>
+                  {COMM_NAMES.map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lS}>Semaine (lundi) *</label>
+                <select value={formAnim.semaine} onChange={e => setFormAnim(f => ({...f, semaine: e.target.value}))} style={iS}>
+                  <option value="">-- Choisir --</option>
+                  {[-1,0,1,2,3,4].map(offset => {
+                    const lundi = getSemaineLundi(offset);
+                    return <option key={lundi} value={lundi}>{formatSemaine(lundi)}</option>;
+                  })}
+                </select>
+              </div>
+              <div>
+                <label style={lS}>Jour *</label>
+                <select value={formAnim.jour} onChange={e => setFormAnim(f => ({...f, jour: e.target.value}))} style={iS}>
+                  <option value="">-- Choisir --</option>
+                  {JOURS.map(j => <option key={j}>{j}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={lS}>Pharmacie *</label>
+                <input placeholder="Nom de la pharmacie" value={formAnim.pharmacie} onChange={e => setFormAnim(f => ({...f, pharmacie: e.target.value}))} style={iS} />
+              </div>
+              <div>
+                <label style={lS}>Adresse / Quartier</label>
+                <input placeholder="Ex: Cocody, Yopougon..." value={formAnim.adresse} onChange={e => setFormAnim(f => ({...f, adresse: e.target.value}))} style={iS} />
+              </div>
+              <div>
+                <label style={lS}>Instructions (optionnel)</label>
+                <textarea placeholder="Insister sur tel produit..." value={formAnim.notes} onChange={e => setFormAnim(f => ({...f, notes: e.target.value}))} style={{ ...iS, height: 70, resize: "vertical" }} />
+              </div>
+              <button onClick={handleSave} disabled={savingAnim} style={{ padding: "13px", background: savingAnim ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 900, fontSize: 15, cursor: "pointer" }}>
+                {savingAnim ? "Enregistrement..." : "Assigner l'animation"}
+              </button>
+            </div>
+          </div>
+
+          {/* Recap semaine a droite */}
+          <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid #e2e8f0", fontWeight: 800, color: "#744210" }}>
+              Animations de {formatSemaine(formAnim.semaine || semaineSel)}
+            </div>
+            {Object.values(programmes).filter(a => a.semaine === (formAnim.semaine || semaineSel)).length === 0 ? (
+              <div style={{ padding: 30, textAlign: "center", color: "#a0aec0", fontSize: 13 }}>Aucune animation pour cette semaine</div>
+            ) : (
+              <div style={{ maxHeight: 500, overflowY: "auto" }}>
+                {JOURS.map(jour => {
+                  const anims = Object.values(programmes).filter(a => a.semaine === (formAnim.semaine || semaineSel) && a.jour === jour);
+                  if (anims.length === 0) return null;
+                  return (
+                    <div key={jour}>
+                      <div style={{ padding: "8px 16px", background: "#f7fafc", fontSize: 12, fontWeight: 800, color: "#4a5568", borderBottom: "1px solid #e2e8f0" }}>{jour}</div>
+                      {anims.map(a => (
+                        <div key={a.id} style={{ padding: "10px 16px", borderBottom: "1px solid #f7fafc", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 13 }}>{a.pharmacie}</div>
+                            <span style={{ background: "#fffff0", color: "#744210", padding: "2px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>{a.commerciale}</span>
+                          </div>
+                          <button onClick={() => handleDelete(a.id)} style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 6, padding: "4px 8px", cursor: "pointer", color: "#e53e3e", fontSize: 11 }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 export default function App() {
   const [user, setUser] = useState(null);
