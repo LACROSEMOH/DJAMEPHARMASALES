@@ -1,4 +1,4 @@
-// DjamePharmaSales v3.7 — 202603031200
+// DjamePharmaSales v3.8 — 202603031400
 import React, { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { initializeApp } from "firebase/app";
@@ -2555,6 +2555,7 @@ function AnimationsAdmin({ sales }) {
   const [formAnim, setFormAnim] = useState({ commerciale: "", semaine: "", jour: "", pharmacie: "", adresse: "", notes: "" });
   const [savingAnim, setSavingAnim] = useState(false);
   const [filterComm, setFilterComm] = useState("");
+  const [editAnimId, setEditAnimId] = useState(null);
 
   // Semaine courante
   const getSemaineLundi = (offset = 0) => {
@@ -2592,14 +2593,46 @@ function AnimationsAdmin({ sales }) {
       return alert("Commerciale, semaine, jour et pharmacie sont obligatoires.");
     setSavingAnim(true);
     try {
-      await addDoc(collection(db, "animationsComm"), {
-        ...formAnim,
-        createdAt: new Date().toISOString(),
-      });
+      if (editAnimId) {
+        await updateDoc(doc(db, "animationsComm", editAnimId), { ...formAnim });
+        setEditAnimId(null);
+        alert("Animation modifiee !");
+      } else {
+        await addDoc(collection(db, "animationsComm"), { ...formAnim, createdAt: new Date().toISOString() });
+        alert("Animation assignee !");
+      }
       setFormAnim({ commerciale: "", semaine: semaineSel, jour: "", pharmacie: "", adresse: "", notes: "" });
-      alert("Animation assignee !");
     } catch(e) { alert("Erreur: " + e.message); }
     setSavingAnim(false);
+  };
+
+  const handleEdit = (a) => {
+    setFormAnim({ commerciale: a.commerciale, semaine: a.semaine, jour: a.jour, pharmacie: a.pharmacie, adresse: a.adresse || "", notes: a.notes || "" });
+    setEditAnimId(a.id);
+    setView("assigner");
+  };
+
+  const handleDeleteSemaine = async () => {
+    if (!window.confirm("Supprimer TOUTES les animations de " + formatSemaine(semaineSel) + " ?")) return;
+    try {
+      const toDelete = animsDeSemaine;
+      await Promise.all(toDelete.map(a => deleteDoc(doc(db, "animationsComm", a.id))));
+      alert(toDelete.length + " animation(s) supprimee(s).");
+    } catch(e) { alert("Erreur: " + e.message); }
+  };
+
+  const handleDupliquerSemaine = async () => {
+    const prochaineLundi = getSemaineLundi(1);
+    if (!window.confirm("Copier les " + animsDeSemaine.length + " animations vers " + formatSemaine(prochaineLundi) + " ?")) return;
+    try {
+      await Promise.all(animsDeSemaine.map(a => addDoc(collection(db, "animationsComm"), {
+        commerciale: a.commerciale, jour: a.jour, pharmacie: a.pharmacie,
+        adresse: a.adresse || "", notes: a.notes || "",
+        semaine: prochaineLundi, createdAt: new Date().toISOString(),
+      })));
+      alert("Semaine dupliquee vers " + formatSemaine(prochaineLundi) + " !");
+      setSemaineSel(prochaineLundi);
+    } catch(e) { alert("Erreur: " + e.message); }
   };
 
   const handleDelete = async (id) => {
@@ -2630,6 +2663,20 @@ function AnimationsAdmin({ sales }) {
             <div style={{ flex: 1, textAlign: "center", fontWeight: 800, color: "#744210", fontSize: 15 }}>{formatSemaine(semaineSel)}</div>
             <button onClick={() => setSemaineSel(getSemaineLundi(0))} style={{ padding: "8px 14px", background: "#fffff0", border: "1px solid #d69e2e", borderRadius: 8, cursor: "pointer", fontWeight: 700, color: "#744210", fontSize: 12 }}>Cette semaine</button>
             <button onClick={() => setSemaineSel(getSemaineLundi(1))} style={{ padding: "8px 14px", background: "#f7fafc", border: "1px solid #e2e8f0", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}>Suiv. →</button>
+          </div>
+
+          {/* Actions semaine */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {animsDeSemaine.length > 0 && (
+              <>
+                <button onClick={handleDupliquerSemaine} style={{ padding: "7px 14px", background: "#ebf4ff", color: "#2b6cb0", border: "1px solid #bee3f8", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>
+                  📋 Copier vers semaine suivante
+                </button>
+                <button onClick={handleDeleteSemaine} style={{ padding: "7px 14px", background: "#fff5f5", color: "#e53e3e", border: "1px solid #fed7d7", borderRadius: 8, cursor: "pointer", fontWeight: 700, fontSize: 12 }}>
+                  🗑️ Effacer toute la semaine
+                </button>
+              </>
+            )}
           </div>
 
           {/* Filtre commerciale */}
@@ -2671,7 +2718,10 @@ function AnimationsAdmin({ sales }) {
                           </div>
                           {a.notes && <div style={{ fontSize: 12, color: "#718096", marginTop: 4, fontStyle: "italic" }}>{a.notes}</div>}
                         </div>
-                        <button onClick={() => handleDelete(a.id)} style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 6, padding: "4px 8px", cursor: "pointer", color: "#e53e3e", fontSize: 11, flexShrink: 0 }}>✕</button>
+                        <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                          <button onClick={() => handleEdit(a)} style={{ background: "#fffff0", border: "1px solid #d69e2e", borderRadius: 6, padding: "4px 8px", cursor: "pointer", color: "#744210", fontSize: 11, fontWeight: 700 }}>✏️</button>
+                          <button onClick={() => handleDelete(a.id)} style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 6, padding: "4px 8px", cursor: "pointer", color: "#e53e3e", fontSize: 11 }}>✕</button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -2710,7 +2760,9 @@ function AnimationsAdmin({ sales }) {
       {view === "assigner" && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "flex-start" }}>
           <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
-            <div style={{ fontWeight: 800, fontSize: 16, color: "#744210", marginBottom: 20 }}>Assigner une animation</div>
+            <div style={{ fontWeight: 800, fontSize: 16, color: "#744210", marginBottom: 20 }}>
+              {editAnimId ? "✏️ Modifier l'animation" : "➕ Assigner une animation"}
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
                 <label style={lS}>Commerciale *</label>
@@ -2748,9 +2800,16 @@ function AnimationsAdmin({ sales }) {
                 <label style={lS}>Instructions (optionnel)</label>
                 <textarea placeholder="Insister sur tel produit..." value={formAnim.notes} onChange={e => setFormAnim(f => ({...f, notes: e.target.value}))} style={{ ...iS, height: 70, resize: "vertical" }} />
               </div>
-              <button onClick={handleSave} disabled={savingAnim} style={{ padding: "13px", background: savingAnim ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 900, fontSize: 15, cursor: "pointer" }}>
-                {savingAnim ? "Enregistrement..." : "Assigner l'animation"}
-              </button>
+              <div style={{ display: "flex", gap: 10 }}>
+                {editAnimId && (
+                  <button onClick={() => { setEditAnimId(null); setFormAnim({ commerciale: "", semaine: semaineSel, jour: "", pharmacie: "", adresse: "", notes: "" }); }} style={{ flex: 1, padding: "13px", background: "#edf2f7", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+                    Annuler
+                  </button>
+                )}
+                <button onClick={handleSave} disabled={savingAnim} style={{ flex: 2, padding: "13px", background: savingAnim ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 900, fontSize: 15, cursor: "pointer" }}>
+                  {savingAnim ? "Enregistrement..." : editAnimId ? "Enregistrer les modifications" : "Assigner l'animation"}
+                </button>
+              </div>
             </div>
           </div>
 
