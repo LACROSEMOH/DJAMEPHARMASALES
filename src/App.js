@@ -37,8 +37,8 @@ const ADMINS = [
 // DÉLÉGUÉS MÉDICAUX — À personnaliser
 // ═══════════════════════════════════════════════
 const DELEGUES = [
-  { nom: "OUATTARA YASMINE", pass: "OUDJAME11" },
-  { nom: "DOUCOURE ASSITA", pass: "DOUDJAME12" },
+  { nom: "DELEGUE 1", pass: "DELEG01" },
+  { nom: "DELEGUE 2", pass: "DELEG02" },
   { nom: "DELEGUE 3", pass: "DELEG03" },
   { nom: "DELEGUE 4", pass: "DELEG04" },
 ];
@@ -720,32 +720,29 @@ function DelegueInterface({ user, tournees, rapportsVisite, onSubmitVisite, onLo
               )}
 
               <div>
-                <label style={{ ...lS, marginBottom: 8 }}>Produits presentes par gamme *</label>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {Object.entries(GAMMES).map(([gamme, produits]) => produits.length === 0 ? null : (
-                    <div key={gamme} style={{ background: "#f7fafc", borderRadius: 10, border: "1px solid #e2e8f0", overflow: "hidden" }}>
-                      <div style={{ padding: "8px 12px", background: "#fffff0", borderBottom: "1px solid #f6e05e", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontWeight: 800, fontSize: 13, color: "#744210" }}>{gamme}</span>
-                        <button onClick={() => {
-                          const allSelected = produits.every(p => rapportForm.produitsPresentes.includes(p));
-                          setRapportForm(f => ({
-                            ...f,
-                            produitsPresentes: allSelected
-                              ? f.produitsPresentes.filter(p => !produits.includes(p))
-                              : [...new Set([...f.produitsPresentes, ...produits])]
-                          }));
-                        }} style={{ fontSize: 11, padding: "3px 8px", background: "white", border: "1px solid #d69e2e", borderRadius: 6, cursor: "pointer", color: "#744210", fontWeight: 600 }}>
-                          {produits.every(p => rapportForm.produitsPresentes.includes(p)) ? "Tout deselect." : "Tout selec."}
-                        </button>
+                <label style={{ ...lS, marginBottom: 8 }}>Gammes presentees *</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {Object.keys(GAMMES).map(gamme => (
+                    <div key={gamme} onClick={() => setRapportForm(f => ({
+                      ...f,
+                      produitsPresentes: f.produitsPresentes.includes(gamme)
+                        ? f.produitsPresentes.filter(x => x !== gamme)
+                        : [...f.produitsPresentes, gamme]
+                    }))}
+                      style={{
+                        padding: "14px 16px", borderRadius: 12, cursor: "pointer",
+                        border: "2px solid",
+                        borderColor: rapportForm.produitsPresentes.includes(gamme) ? "#d69e2e" : "#e2e8f0",
+                        background: rapportForm.produitsPresentes.includes(gamme) ? "#fffff0" : "white",
+                        display: "flex", alignItems: "center", gap: 10,
+                      }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 6, border: "2px solid", flexShrink: 0,
+                        borderColor: rapportForm.produitsPresentes.includes(gamme) ? "#d69e2e" : "#cbd5e0",
+                        background: rapportForm.produitsPresentes.includes(gamme) ? "#d69e2e" : "white",
+                        display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {rapportForm.produitsPresentes.includes(gamme) && <span style={{ color: "white", fontSize: 14, fontWeight: 900 }}>✓</span>}
                       </div>
-                      <div style={{ padding: 10, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
-                        {produits.map(p => (
-                          <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11, padding: "4px 6px", borderRadius: 6, background: rapportForm.produitsPresentes.includes(p) ? "#fffff0" : "transparent", border: rapportForm.produitsPresentes.includes(p) ? "1px solid #d69e2e" : "1px solid transparent" }}>
-                            <input type="checkbox" checked={rapportForm.produitsPresentes.includes(p)} onChange={() => toggleProduit(p)} style={{ accentColor: "#d69e2e" }} />
-                            <span style={{ color: "#4a5568" }}>{p}</span>
-                          </label>
-                        ))}
-                      </div>
+                      <span style={{ fontWeight: 800, fontSize: 14, color: rapportForm.produitsPresentes.includes(gamme) ? "#744210" : "#4a5568" }}>{gamme}</span>
                     </div>
                   ))}
                 </div>
@@ -929,7 +926,7 @@ fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent('${zo
 // ═══════════════════════════════════════════════
 // PANEL ADMIN — GESTION DELEGUES
 // ═══════════════════════════════════════════════
-function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDeleteTournee, pharmacies, onAddPharmacie }) {
+function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDeleteTournee, pharmacies, onAddPharmacie, user }) {
   const [view, setView] = useState("dashboard");
   const [selectedDelegue, setSelectedDelegue] = useState(null);
   const [formTournee, setFormTournee] = useState({ delegue: "", pharmacie: "", ville: "", adresse: "", date: new Date().toISOString().split("T")[0], notes: "" });
@@ -1435,6 +1432,24 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
               <option value="">Tous les delegues</option>
               {DELEGUES.map(d => <option key={d.nom}>{d.nom}</option>)}
             </select>
+            {user && user.login === "MOHAMED KONE YASSINE" && (
+              <button onClick={async () => {
+                if (!window.confirm("Supprimer TOUS les rapports de visite et toutes les tournees ? Cette action est irreversible.")) return;
+                try {
+                  const rSnap = await getDocs(collection(db, "rapportsVisite"));
+                  const tSnap = await getDocs(collection(db, "tournees"));
+                  const deletes = [
+                    ...rSnap.docs.map(d => deleteDoc(doc(db, "rapportsVisite", d.id))),
+                    ...tSnap.docs.map(d => deleteDoc(doc(db, "tournees", d.id))),
+                  ];
+                  await Promise.all(deletes);
+                  alert("Tous les rapports et tournees ont ete supprimes.");
+                } catch(e) { alert("Erreur lors de la suppression."); }
+              }}
+                style={{ padding: "9px 16px", background: "#fff5f5", color: "#e53e3e", border: "2px solid #fed7d7", borderRadius: 8, fontWeight: 800, fontSize: 12, cursor: "pointer" }}>
+                Remettre a zero
+              </button>
+            )}
           </div>
           {(() => {
             const filtered = selectedDelegue ? rapportsVisite.filter(r => r.delegue === selectedDelegue) : rapportsVisite;
@@ -2172,6 +2187,7 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, 
                 onDeleteTournee={onDeleteTournee}
                 pharmacies={pharmacies}
                 onAddPharmacie={onAddPharmacie}
+                user={user}
               />
             )}
 
