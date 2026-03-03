@@ -784,96 +784,78 @@ function DelegueInterface({ user, tournees, rapportsVisite, onSubmitVisite, onLo
 // ═══════════════════════════════════════════════
 function CarteLeaflet({ zone, onSelectPharmacie }) {
   const iframeRef = React.useRef(null);
-  const zoneClean = zone.replace("Abidjan - ", "");
+  const zoneClean = (zone || "").replace("Abidjan - ", "").replace(/[éèêë]/g,"e").replace(/[àâ]/g,"a").replace(/[ôö]/g,"o").replace(/[îï]/g,"i").replace(/[ûü]/g,"u");
 
   React.useEffect(() => {
     const handleMsg = (e) => {
-      if (e.data && e.data.type === "pharmacie") {
-        onSelectPharmacie(e.data);
-      }
+      if (e.data && e.data.type === "pharmacie") onSelectPharmacie(e.data);
     };
     window.addEventListener("message", handleMsg);
     return () => window.removeEventListener("message", handleMsg);
   }, [onSelectPharmacie]);
 
-  const mapUrl = "https://overpass-api.de/api/interpreter";
-  
-  // Build HTML as array then join to avoid template literal escaping issues
-  const lines = [
+  const html = [
     "<!DOCTYPE html><html><head><meta charset='utf-8'/>",
     "<link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'/>",
     "<script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'><\/script>",
-    "<style>",
-    "body{margin:0;padding:0;}",
-    "#map{width:100%;height:520px;}",
-    ".loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:20px 30px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.2);font-family:sans-serif;font-size:15px;font-weight:700;color:#744210;z-index:9999;}",
-    ".cnt{position:absolute;bottom:10px;left:10px;z-index:1000;background:white;padding:8px 14px;border-radius:20px;font-family:sans-serif;font-size:12px;font-weight:700;color:#744210;box-shadow:0 2px 8px rgba(0,0,0,0.2);}",
-    "</style></head><body>",
+    "<style>body{margin:0}#map{width:100%;height:520px}.ld{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;padding:16px 24px;border-radius:10px;font-family:sans-serif;font-weight:700;color:#744210;z-index:9999}.ct{position:absolute;bottom:10px;left:10px;z-index:1000;background:white;padding:6px 14px;border-radius:20px;font-family:sans-serif;font-size:12px;font-weight:700;color:#744210;box-shadow:0 2px 8px rgba(0,0,0,.2);display:none}.pp{font-family:sans-serif}.pp h3{margin:0 0 4px;font-size:14px;color:#1a365d}.pp p{margin:0 0 8px;font-size:12px;color:#718096}.pp button{background:linear-gradient(135deg,#744210,#d69e2e);color:white;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;width:100%}<\/style>",
+    "</head><body>",
     "<div id='map'></div>",
-    "<div id='ld' class='loading'>Chargement des pharmacies...</div>",
-    "<div id='cnt' class='cnt' style='display:none'></div>",
+    "<div id='ld' class='ld'>Chargement des pharmacies...</div>",
+    "<div id='ct' class='ct'></div>",
     "<script>",
     "var map=L.map('map');",
     "L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'OSM',maxZoom:19}).addTo(map);",
-    "var ri=L.divIcon({html:'<div style="background:#e53e3e;width:14px;height:14px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',iconSize:[20,20],iconAnchor:[10,10],className:''});",
-    "var gi=L.divIcon({html:'<div style="background:#276749;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.5)"></div>',iconSize:[22,22],iconAnchor:[11,11],className:''});",
-    "function sel(nm,la,lo,ad){",
+    "var ri=L.divIcon({html:'<div style=\'background:#e53e3e;width:14px;height:14px;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.4)\'></div>',iconSize:[20,20],iconAnchor:[10,10],className:''});",
+    "var gi=L.divIcon({html:'<div style=\'background:#276749;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,.5)\'></div>',iconSize:[22,22],iconAnchor:[11,11],className:''});",
+    "var sel={};",
+    "function addPh(nm,la,lo,ad){",
+    "  var mk=L.marker([la,lo],{icon:ri}).addTo(map);",
+    "  var safeNm=nm.replace(/'/g,'\\\\x27');",
+    "  var safeAd=(ad||'').replace(/'/g,'\\\\x27');",
+    "  mk.bindPopup('<div class=\\'pp\\'><h3>'+nm+'</h3><p>'+(ad||'')+'</p><button onclick=\\'pickPh(\\''+safeNm+'\\','+la+','+lo+',\\''+safeAd+'\\')\\'>+ Ajouter a la liste</button></div>');",
+    "  return mk;",
+    "}",
+    "function pickPh(nm,la,lo,ad){",
     "  window.parent.postMessage({type:'pharmacie',nom:nm,lat:la,lng:lo,adresse:ad},'*');",
     "  map.closePopup();",
     "}",
-    "fetch('https://nominatim.openstreetmap.org/search?q=" + encodeURIComponent(zoneClean + " Cote Ivoire") + "&format=json&limit=1',{headers:{'User-Agent':'DjamePharma/1.0'}})",
+    "fetch('https://nominatim.openstreetmap.org/search?q=" + zoneClean + "+Cote+Ivoire&format=json&limit=1',{headers:{'Accept-Language':'fr'}})",
     ".then(function(r){return r.json();})",
     ".then(function(geo){",
     "  if(!geo||!geo.length){document.getElementById('ld').textContent='Zone introuvable';return;}",
     "  var la=parseFloat(geo[0].lat),lo=parseFloat(geo[0].lon);",
     "  map.setView([la,lo],14);",
-    "  var d=0.06;",
-    "  var q='[out:json][timeout:30];(node["amenity"="pharmacy"]('+( la-d)+','+(lo-d)+','+(la+d)+','+(lo+d)+');way["amenity"="pharmacy"]('+( la-d)+','+(lo-d)+','+(la+d)+','+(lo+d)+'););out center 80;';",
+    "  var d=0.07;",
+    "  var q='[out:json][timeout:30];(node[\"amenity\"=\"pharmacy\"]('+( la-d)+','+(lo-d)+','+(la+d)+','+(lo+d)+');way[\"amenity\"=\"pharmacy\"]('+( la-d)+','+(lo-d)+','+(la+d)+','+(lo+d)+'););out center 80;';",
     "  return fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:'data='+encodeURIComponent(q)});",
     "})",
     ".then(function(r){return r?r.json():null;})",
     ".then(function(data){",
     "  document.getElementById('ld').style.display='none';",
     "  if(!data||!data.elements)return;",
-    "  var c=0;",
+    "  var n=0;",
     "  data.elements.forEach(function(el){",
     "    var nm=(el.tags&&el.tags.name)?el.tags.name:'Pharmacie';",
-    "    var la=el.lat||(el.center&&el.center.lat);",
-    "    var lo=el.lon||(el.center&&el.center.lon);",
-    "    if(!la||!lo)return;",
-    "    var ad=(el.tags&&el.tags['addr:street'])?el.tags['addr:street']:'';",
-    "    var mk=L.marker([la,lo],{icon:ri}).addTo(map);",
-    "    mk.bindPopup(",
-    "      '<div style="font-family:sans-serif;padding:4px">' +",
-    "      '<div style="font-weight:800;font-size:13px;color:#1a365d;margin-bottom:6px">' + nm + '</div>' +",
-    "      '<div style="font-size:11px;color:#718096;margin-bottom:10px">' + ad + '</div>' +",
-    "      '<button id="btn_'+c+'" style="background:linear-gradient(135deg,#744210,#d69e2e);color:white;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;width:100%">+ Ajouter</button>' +",
-    "      '</div>'",
-    "    );",
-    "    mk.on('popupopen',function(e){",
-    "      var n=nm,la2=la,lo2=lo,a=ad;",
-    "      setTimeout(function(){",
-    "        var btn=document.querySelector('.leaflet-popup-content button');",
-    "        if(btn)btn.onclick=function(){sel(n,la2,lo2,a);mk.setIcon(gi);};",
-    "      },50);",
-    "    });",
-    "    c++;",
+    "    var eLa=el.lat||(el.center&&el.center.lat);",
+    "    var eLo=el.lon||(el.center&&el.center.lon);",
+    "    if(!eLa||!eLo)return;",
+    "    var ad=el.tags?((el.tags['addr:street']||'')+(el.tags['addr:city']?' '+el.tags['addr:city']:'')):'' ;",
+    "    addPh(nm,eLa,eLo,ad.trim());n++;",
     "  });",
-    "  var ce=document.getElementById('cnt');",
-    "  ce.style.display='block';",
-    "  ce.textContent=c+' pharmacies trouvees';",
-    "  if(c===0){document.getElementById('ld').style.display='block';document.getElementById('ld').textContent='Aucune pharmacie trouvee';}",
+    "  var ct=document.getElementById('ct');",
+    "  ct.style.display='block';ct.textContent=n+' pharmacies';",
+    "  if(n===0){document.getElementById('ld').style.display='block';document.getElementById('ld').textContent='Aucune pharmacie trouvee';}",
     "})",
-    ".catch(function(){document.getElementById('ld').textContent='Erreur chargement. Reessayez.';});",
+    ".catch(function(){document.getElementById('ld').textContent='Erreur. Reessayez.';});",
     "<\/script></body></html>"
-  ];
-  const htmlContent = lines.join("\n");
+  ].join("\n");
 
   return (
     <iframe
       ref={iframeRef}
       title="carte-leaflet"
-      srcDoc={htmlContent}
+      srcDoc={html}
       width="100%"
       height="520"
       style={{ border: 0, display: "block" }}
@@ -882,9 +864,7 @@ function CarteLeaflet({ zone, onSelectPharmacie }) {
   );
 }
 
-// ═══════════════════════════════════════════════
-// PANEL ADMIN — GESTION DELEGUES
-// ═══════════════════════════════════════════════
+
 function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDeleteTournee, pharmacies, onAddPharmacie, user, deleguesDB }) {
   const [view, setView] = useState("dashboard");
   const [selectedDelegue, setSelectedDelegue] = useState(null);
