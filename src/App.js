@@ -256,7 +256,7 @@ function LoginScreen({ onLogin, deleguesDB }) {
                 <label style={lS}>Votre nom</label>
                 <select value={nom} onChange={e => setNom(e.target.value)} style={iS}>
                   <option value="">-- Sélectionnez votre nom --</option>
-                  {(deleguesDB.length > 0 ? deleguesDB : DELEGUES).map(d => <option key={d.nom}>{d.nom}</option>)}
+                  {deleguesDB.map(d => <option key={d.nom}>{d.nom}</option>)}
                 </select>
               </div>
               <div>
@@ -265,7 +265,7 @@ function LoginScreen({ onLogin, deleguesDB }) {
                   <input type={showPass ? "text" : "password"} placeholder="••••••••" value={pass} onChange={e => setPass(e.target.value)}
                     onKeyDown={e => {
                       if (e.key === "Enter") {
-                        const list = deleguesDB.length > 0 ? deleguesDB : DELEGUES;
+                        const list = deleguesDB;
                         const found = list.find(d => d.nom === nom && d.pass === pass);
                         if (found) { setError(""); onLogin({ role: "delegue", nom: found.nom }); }
                         else setError("Nom ou mot de passe incorrect.");
@@ -277,7 +277,7 @@ function LoginScreen({ onLogin, deleguesDB }) {
               </div>
               {error && <div style={{ background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 8, padding: "10px 14px", color: "#e53e3e", fontSize: 13 }}>⚠️ {error}</div>}
               <button onClick={() => {
-                const list2 = deleguesDB.length > 0 ? deleguesDB : DELEGUES;
+                const list2 = deleguesDB;
                 const found = list2.find(d => d.nom === nom && d.pass === pass);
                 if (found) { setError(""); onLogin({ role: "delegue", nom: found.nom }); }
                 else setError("Nom ou mot de passe incorrect.");
@@ -953,7 +953,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
     return () => unsub();
   }, []);
 
-  const statsByDelegue = (deleguesDB.length > 0 ? deleguesDB : DELEGUES).map(d => {
+  const statsByDelegue = deleguesDB.map(d => {
     const mesT = tournees.filter(t => t.delegue === d.nom);
     const mesR = rapportsVisite.filter(r => r.delegue === d.nom);
     const today = mesT.filter(t => t.date === todayStr);
@@ -1125,6 +1125,24 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
       {view === "dashboard" && (
         <>
           <div style={{ fontWeight: 800, color: "#744210", fontSize: 15, marginBottom: 14 }}>Suivi des delegues — Aujourd'hui {todayStr}</div>
+
+          {deleguesDB.length === 0 && (
+            <div style={{ background: "#fffff0", border: "2px dashed #d69e2e", borderRadius: 14, padding: 30, textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 36 }}>👥</div>
+              <div style={{ fontWeight: 800, color: "#744210", fontSize: 15, marginTop: 10 }}>Aucun delegue configure</div>
+              <div style={{ fontSize: 13, color: "#718096", marginTop: 6 }}>
+                {user && user.nom === "MOHAMED KONE YASSINE"
+                  ? "Allez dans l'onglet "Gerer les delegues" pour ajouter vos delegues"
+                  : "L'administrateur doit d'abord configurer les delegues"}
+              </div>
+              {user && user.nom === "MOHAMED KONE YASSINE" && (
+                <button onClick={() => setView("gestion")} style={{ marginTop: 14, padding: "10px 24px", background: "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 800, cursor: "pointer", fontSize: 13 }}>
+                  Configurer les delegues →
+                </button>
+              )}
+            </div>
+          )}
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14, marginBottom: 24 }}>
             {statsByDelegue.map(d => (
               <div key={d.nom} style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", border: "2px solid " + (d.todayVisites === d.todayTotal && d.todayTotal > 0 ? "#9ae6b4" : "#fefcbf") }}>
@@ -1392,7 +1410,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
                 <label style={lS}>Delegue medical *</label>
                 <select value={assignDelegue} onChange={e => setAssignDelegue(e.target.value)} style={iS}>
                   <option value="">-- Choisir un delegue --</option>
-                  {(deleguesDB.length > 0 ? deleguesDB : DELEGUES).map(d => <option key={d.nom}>{d.nom}</option>)}
+                  {deleguesDB.map(d => <option key={d.nom}>{d.nom}</option>)}
                 </select>
               </div>
               <div>
@@ -1432,7 +1450,7 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
             <div style={{ fontWeight: 800, fontSize: 15, color: "#744210", flex: 1 }}>Rapports de visite</div>
             <select value={selectedDelegue || ""} onChange={e => setSelectedDelegue(e.target.value || null)} style={{ ...iS, width: "auto", minWidth: 180 }}>
               <option value="">Tous les delegues</option>
-              {(deleguesDB.length > 0 ? deleguesDB : DELEGUES).map(d => <option key={d.nom}>{d.nom}</option>)}
+              {deleguesDB.map(d => <option key={d.nom}>{d.nom}</option>)}
             </select>
             {user && user.nom === "MOHAMED KONE YASSINE" && (
               <>
