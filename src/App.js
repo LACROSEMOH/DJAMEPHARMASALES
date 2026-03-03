@@ -37,10 +37,10 @@ const ADMINS = [
 // DÉLÉGUÉS MÉDICAUX — À personnaliser
 // ═══════════════════════════════════════════════
 const DELEGUES = [
-  { nom: "DELEGUE 1", pass: "DELEG01" },
-  { nom: "DELEGUE 2", pass: "DELEG02" },
-  { nom: "DELEGUE 3", pass: "DELEG03" },
-  { nom: "DELEGUE 4", pass: "DELEG04" },
+  { nom: "OUATTARA YASMINE", pass: "OUDJAME11" },
+  { nom: "DOUCOURE ASSITA", pass: "DOUDJAME12" },
+  { nom: "FUTURE DELEGUE1", pass: "DELEG03" },
+  { nom: "FUTURE DELEGUE2", pass: "DELEG04" },
 ];
 
 // Clé Google Maps — À remplacer par votre vraie clé
@@ -135,6 +135,7 @@ const GAMMES = {
 // UTILITAIRES
 // ═══════════════════════════════════════════════
 const fmt = (n) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
+const normalizeComm = (nom) => nom === "AICHA LACROSE" ? "AICHA DIALLO" : nom;
 const today = () => new Date().toISOString().split("T")[0];
 const emptyForm = () => ({
   date: today(), pharmacie: "", ville: "",
@@ -1433,22 +1434,37 @@ function DeleguesAdminPanel({ tournees, rapportsVisite, onCreateTournee, onDelet
               {DELEGUES.map(d => <option key={d.nom}>{d.nom}</option>)}
             </select>
             {user && user.login === "MOHAMED KONE YASSINE" && (
-              <button onClick={async () => {
-                if (!window.confirm("Supprimer TOUS les rapports de visite et toutes les tournees ? Cette action est irreversible.")) return;
-                try {
-                  const rSnap = await getDocs(collection(db, "rapportsVisite"));
-                  const tSnap = await getDocs(collection(db, "tournees"));
-                  const deletes = [
-                    ...rSnap.docs.map(d => deleteDoc(doc(db, "rapportsVisite", d.id))),
-                    ...tSnap.docs.map(d => deleteDoc(doc(db, "tournees", d.id))),
-                  ];
-                  await Promise.all(deletes);
-                  alert("Tous les rapports et tournees ont ete supprimes.");
-                } catch(e) { alert("Erreur lors de la suppression."); }
-              }}
-                style={{ padding: "9px 16px", background: "#fff5f5", color: "#e53e3e", border: "2px solid #fed7d7", borderRadius: 8, fontWeight: 800, fontSize: 12, cursor: "pointer" }}>
-                Remettre a zero
-              </button>
+              <>
+                <button onClick={async () => {
+                  if (!window.confirm("Fusionner AICHA LACROSE -> AICHA DIALLO dans toutes les ventes ?")) return;
+                  try {
+                    const snap = await getDocs(collection(db, "ventes"));
+                    const toFix = snap.docs.filter(d => d.data().commerciale === "AICHA LACROSE");
+                    if (toFix.length === 0) { alert("Aucune vente AICHA LACROSE trouvee. Deja migre !"); return; }
+                    await Promise.all(toFix.map(d => updateDoc(doc(db, "ventes", d.id), { commerciale: "AICHA DIALLO" })));
+                    alert(toFix.length + " ventes migrees : AICHA LACROSE -> AICHA DIALLO !");
+                  } catch(e) { alert("Erreur migration: " + e.message); }
+                }}
+                  style={{ padding: "9px 16px", background: "#fffff0", color: "#744210", border: "2px solid #d69e2e", borderRadius: 8, fontWeight: 800, fontSize: 12, cursor: "pointer" }}>
+                  Fusionner AICHA
+                </button>
+                <button onClick={async () => {
+                  if (!window.confirm("Supprimer TOUS les rapports de visite et toutes les tournees ? Cette action est irreversible.")) return;
+                  try {
+                    const rSnap = await getDocs(collection(db, "rapportsVisite"));
+                    const tSnap = await getDocs(collection(db, "tournees"));
+                    const deletes = [
+                      ...rSnap.docs.map(d => deleteDoc(doc(db, "rapportsVisite", d.id))),
+                      ...tSnap.docs.map(d => deleteDoc(doc(db, "tournees", d.id))),
+                    ];
+                    await Promise.all(deletes);
+                    alert("Tous les rapports et tournees ont ete supprimes.");
+                  } catch(e) { alert("Erreur lors de la suppression."); }
+                }}
+                  style={{ padding: "9px 16px", background: "#fff5f5", color: "#e53e3e", border: "2px solid #fed7d7", borderRadius: 8, fontWeight: 800, fontSize: 12, cursor: "pointer" }}>
+                  Remettre a zero
+                </button>
+              </>
             )}
           </div>
           {(() => {
@@ -2295,7 +2311,7 @@ export default function App() {
   useEffect(() => {
     const q = query(collection(db, "ventes"), orderBy("timestamp", "desc"));
     const unsub = onSnapshot(q, (snap) => {
-      setSales(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setSales(snap.docs.map(d => { const data = d.data(); return { id: d.id, ...data, commerciale: normalizeComm(data.commerciale || "") }; }));
       setLoading(false);
     }, () => setLoading(false));
     return () => unsub();
