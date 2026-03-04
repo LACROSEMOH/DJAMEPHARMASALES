@@ -2156,6 +2156,7 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, 
     { id: "stocks",      label: "Stocks pharmacies" },
     { id: "delegues",    label: "Delegues Medicaux" },
     { id: "animations",  label: "Animations Commerciales" },
+    { id: "comptabilite", label: "Comptabilite & Factures" },
   ];
 
   const RankingCard = ({ ranking, dataset, title }) => (
@@ -2503,6 +2504,11 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, 
             {activeTab === "animations" && (
               <AnimationsAdmin sales={sales} />
             )}
+
+            {/* ── ONGLET COMPTABILITE ── */}
+            {activeTab === "comptabilite" && (
+              <ComptabiliteAdmin />
+            )}
             )}
           </>
         )}
@@ -2820,6 +2826,302 @@ function AnimationsAdmin({ sales }) {
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════
+// COMPTABILITE & FACTURES
+// ═══════════════════════════════════════════════
+function ComptabiliteAdmin() {
+  const [factures, setFactures] = useState([]);
+  const [view, setView] = useState("liste");
+  const [form, setForm] = useState({ pharmacie: "", date: new Date().toISOString().split("T")[0], lignes: [{ produit: "", quantite: "", prixUnitaire: "" }], notes: "" });
+  const [saving, setSaving] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [filterMois, setFilterMois] = useState("");
+
+  const PRODUITS_LISTE = [
+    "ANADOR 500MG COMPRIMES","ANADOR 1G COMPRIMES","ANADOR SUPPO 125MG","ANADOR SUPPO 300MG",
+    "ANADOR SIROP","ANADOR SACHETS","PIAVE GEL","PIAVE CREME","HELAN CREME","HELAN LOTION",
+    "SILVER CARE BROSSE","SILVER CARE DENTIFRICE","SILVER CARE BAIN DE BOUCHE"
+  ];
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "factures"), (snap) => {
+      setFactures(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => b.numero - a.numero));
+    });
+    return () => unsub();
+  }, []);
+
+  const getNextNumero = () => {
+    if (factures.length === 0) return "FAC-001";
+    const max = Math.max(...factures.map(f => parseInt((f.numero||"0").toString().replace(/\D/g,"")) || 0));
+    return "FAC-" + String(max + 1).padStart(3, "0");
+  };
+
+  const totalFacture = (lignes) => lignes.reduce((s, l) => s + (parseFloat(l.quantite)||0) * (parseFloat(l.prixUnitaire)||0), 0);
+
+  const addLigne = () => setForm(f => ({ ...f, lignes: [...f.lignes, { produit: "", quantite: "", prixUnitaire: "" }] }));
+  const removeLigne = (i) => setForm(f => ({ ...f, lignes: f.lignes.filter((_, idx) => idx !== i) }));
+  const updateLigne = (i, field, val) => setForm(f => ({ ...f, lignes: f.lignes.map((l, idx) => idx === i ? { ...l, [field]: val } : l) }));
+
+  const handleSave = async () => {
+    if (!form.pharmacie || form.lignes.some(l => !l.produit || !l.quantite || !l.prixUnitaire))
+      return alert("Pharmacie et tous les produits sont obligatoires.");
+    setSaving(true);
+    try {
+      const data = { ...form, numero: editId ? (factures.find(f=>f.id===editId)?.numero || getNextNumero()) : getNextNumero(), total: totalFacture(form.lignes), createdAt: new Date().toISOString() };
+      if (editId) { await updateDoc(doc(db, "factures", editId), data); alert("Facture mise a jour !"); }
+      else { await addDoc(collection(db, "factures"), data); alert("Facture creee !"); }
+      setForm({ pharmacie: "", date: new Date().toISOString().split("T")[0], lignes: [{ produit: "", quantite: "", prixUnitaire: "" }], notes: "" });
+      setEditId(null); setView("liste");
+    } catch(e) { alert("Erreur: " + e.message); }
+    setSaving(false);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Supprimer cette facture ?")) return;
+    try { await deleteDoc(doc(db, "factures", id)); } catch(e) {}
+  };
+
+  const handleEdit = (f) => {
+    setForm({ pharmacie: f.pharmacie, date: f.date, lignes: f.lignes, notes: f.notes || "" });
+    setEditId(f.id); setView("nouvelle");
+  };
+
+  const exportWord = (facture) => {
+    const numero = facture.numero || "FAC-???";
+    const date = new Date(facture.date + "T00:00:00").toLocaleDateString("fr-FR", { day:"numeric", month:"long", year:"numeric" });
+    const lignesHtml = facture.lignes.map((l, i) => `
+      <tr style="background:${i%2===0?"#ffffff":"#f7fafc"}">
+        <td style="padding:8px 12px;border:1px solid #e2e8f0;">${l.produit}</td>
+        <td style="padding:8px 12px;border:1px solid #e2e8f0;text-align:center;">${l.quantite}</td>
+        <td style="padding:8px 12px;border:1px solid #e2e8f0;text-align:right;">${parseFloat(l.prixUnitaire).toLocaleString("fr-FR")} FCFA</td>
+        <td style="padding:8px 12px;border:1px solid #e2e8f0;text-align:right;font-weight:700;">${((parseFloat(l.quantite)||0)*(parseFloat(l.prixUnitaire)||0)).toLocaleString("fr-FR")} FCFA</td>
+      </tr>`).join("");
+
+    const html = `
+      <html><head><meta charset="utf-8">
+      <style>
+        body { font-family: Arial, sans-serif; margin: 40px; color: #1a202c; }
+        .header { background: linear-gradient(135deg, #744210, #d69e2e); color: white; padding: 30px; border-radius: 8px; margin-bottom: 30px; }
+        .header h1 { margin: 0; font-size: 28px; letter-spacing: 2px; }
+        .header p { margin: 4px 0 0; opacity: 0.9; font-size: 14px; }
+        .meta { display: flex; justify-content: space-between; margin-bottom: 30px; }
+        .meta-box { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; min-width: 200px; }
+        .meta-box label { font-size: 11px; font-weight: 700; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
+        .meta-box p { margin: 4px 0 0; font-size: 16px; font-weight: 800; color: #1a365d; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        thead tr { background: #744210; color: white; }
+        thead th { padding: 10px 12px; text-align: left; font-size: 13px; }
+        .total-row { background: #fffff0 !important; font-size: 16px; }
+        .total-row td { padding: 12px; border: 2px solid #d69e2e !important; font-weight: 900; color: #744210; }
+        .footer { margin-top: 40px; text-align: center; color: #a0aec0; font-size: 12px; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+      </style></head>
+      <body>
+        <div class="header">
+          <h1>💊 DJAMEPHARMASALES</h1>
+          <p>Distribution Pharmaceutique — Abidjan, Côte d'Ivoire</p>
+        </div>
+        <div class="meta">
+          <div class="meta-box"><label>Numéro de facture</label><p>${numero}</p></div>
+          <div class="meta-box"><label>Date</label><p>${date}</p></div>
+          <div class="meta-box"><label>Client</label><p>${facture.pharmacie}</p></div>
+        </div>
+        <table>
+          <thead><tr>
+            <th>Produit</th><th style="text-align:center">Quantité</th>
+            <th style="text-align:right">Prix unitaire</th><th style="text-align:right">Total</th>
+          </tr></thead>
+          <tbody>${lignesHtml}
+            <tr class="total-row">
+              <td colspan="3" style="text-align:right;padding:12px">TOTAL GÉNÉRAL</td>
+              <td style="text-align:right;padding:12px">${facture.total.toLocaleString("fr-FR")} FCFA</td>
+            </tr>
+          </tbody>
+        </table>
+        ${facture.notes ? `<p style="color:#4a5568;font-style:italic;font-size:13px">Notes : ${facture.notes}</p>` : ""}
+        <div class="footer">
+          <p>DjamePharmaSales — Facture générée le ${new Date().toLocaleDateString("fr-FR")}</p>
+        </div>
+      </body></html>`;
+
+    const blob = new Blob([html], { type: "application/msword" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `Facture_${numero}_${facture.pharmacie.replace(/\s+/g,"_")}.doc`;
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  const facturesFiltrees = filterMois ? factures.filter(f => f.date && f.date.startsWith(filterMois)) : factures;
+  const totalMois = facturesFiltrees.reduce((s, f) => s + (f.total || 0), 0);
+  const moisDisponibles = [...new Set(factures.map(f => f.date ? f.date.substring(0,7) : "").filter(Boolean))].sort().reverse();
+
+  const fmt = (n) => (n||0).toLocaleString("fr-FR") + " FCFA";
+
+  return (
+    <div>
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
+        {[{ id: "liste", label: "📋 Liste des factures" }, { id: "nouvelle", label: editId ? "✏️ Modifier la facture" : "➕ Nouvelle facture" }].map(v => (
+          <button key={v.id} onClick={() => { setView(v.id); if(v.id==="liste"){ setEditId(null); setForm({ pharmacie:"", date: new Date().toISOString().split("T")[0], lignes:[{produit:"",quantite:"",prixUnitaire:""}], notes:"" }); }}} style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: view === v.id ? "#744210" : "white", color: view === v.id ? "white" : "#4a5568", fontWeight: 700, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── LISTE ── */}
+      {view === "liste" && (
+        <div>
+          {/* Stats + filtre mois */}
+          <div style={{ display: "flex", gap: 14, marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ background: "white", borderRadius: 14, padding: "16px 24px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", flex: 1 }}>
+              <div style={{ fontSize: 12, color: "#718096", fontWeight: 700, textTransform: "uppercase" }}>Total factures</div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: "#744210", marginTop: 4 }}>{factures.length}</div>
+            </div>
+            <div style={{ background: "white", borderRadius: 14, padding: "16px 24px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", flex: 2 }}>
+              <div style={{ fontSize: 12, color: "#718096", fontWeight: 700, textTransform: "uppercase" }}>Montant {filterMois ? "du mois" : "total"}</div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: "#276749", marginTop: 4 }}>{fmt(totalMois)}</div>
+            </div>
+            <div style={{ background: "white", borderRadius: 14, padding: "14px 20px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", display: "flex", alignItems: "center", gap: 10 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "#4a5568" }}>Filtrer par mois</label>
+              <select value={filterMois} onChange={e => setFilterMois(e.target.value)} style={{ padding: "7px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontWeight: 600, fontSize: 13 }}>
+                <option value="">Tous</option>
+                {moisDisponibles.map(m => <option key={m} value={m}>{new Date(m+"-01").toLocaleDateString("fr-FR",{month:"long",year:"numeric"})}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {facturesFiltrees.length === 0 ? (
+            <div style={{ background: "white", borderRadius: 14, padding: 50, textAlign: "center", color: "#a0aec0", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+              <div style={{ fontSize: 48 }}>🧾</div>
+              <div style={{ marginTop: 14, fontWeight: 700, fontSize: 16 }}>Aucune facture</div>
+              <button onClick={() => setView("nouvelle")} style={{ marginTop: 16, padding: "10px 24px", background: "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 800, cursor: "pointer" }}>
+                Créer la première facture
+              </button>
+            </div>
+          ) : (
+            <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#744210", color: "white" }}>
+                    {["N° Facture","Date","Pharmacie","Produits","Total","Actions"].map(h => (
+                      <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700, fontSize: 12 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {facturesFiltrees.map((f, idx) => (
+                    <tr key={f.id} style={{ background: idx%2===0 ? "white" : "#f7fafc", borderBottom: "1px solid #e2e8f0" }}>
+                      <td style={{ padding: "12px 16px", fontWeight: 900, color: "#744210" }}>{f.numero}</td>
+                      <td style={{ padding: "12px 16px", color: "#4a5568" }}>{new Date(f.date+"T00:00:00").toLocaleDateString("fr-FR")}</td>
+                      <td style={{ padding: "12px 16px", fontWeight: 700, color: "#1a365d" }}>{f.pharmacie}</td>
+                      <td style={{ padding: "12px 16px", color: "#718096" }}>{f.lignes?.length || 0} produit(s)</td>
+                      <td style={{ padding: "12px 16px", fontWeight: 800, color: "#276749" }}>{fmt(f.total)}</td>
+                      <td style={{ padding: "12px 16px" }}>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button onClick={() => exportWord(f)} style={{ padding: "5px 10px", background: "#ebf4ff", border: "1px solid #bee3f8", borderRadius: 6, cursor: "pointer", color: "#2b6cb0", fontSize: 11, fontWeight: 700 }}>📄 Word</button>
+                          <button onClick={() => handleEdit(f)} style={{ padding: "5px 10px", background: "#fffff0", border: "1px solid #d69e2e", borderRadius: 6, cursor: "pointer", color: "#744210", fontSize: 11, fontWeight: 700 }}>✏️</button>
+                          <button onClick={() => handleDelete(f.id)} style={{ padding: "5px 10px", background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 6, cursor: "pointer", color: "#e53e3e", fontSize: 11 }}>✕</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── NOUVELLE / MODIFIER ── */}
+      {view === "nouvelle" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 20, alignItems: "flex-start" }}>
+          {/* Formulaire */}
+          <div style={{ background: "white", borderRadius: 14, padding: 24, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: "#744210", marginBottom: 20 }}>
+              {editId ? "Modifier la facture" : "Nouvelle facture — " + getNextNumero()}
+            </div>
+            <div style={{ display: "flex", gap: 14, marginBottom: 16 }}>
+              <div style={{ flex: 2 }}>
+                <label style={lS}>Pharmacie *</label>
+                <input placeholder="Nom de la pharmacie" value={form.pharmacie} onChange={e => setForm(f=>({...f, pharmacie: e.target.value}))} style={iS} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={lS}>Date *</label>
+                <input type="date" value={form.date} onChange={e => setForm(f=>({...f, date: e.target.value}))} style={iS} />
+              </div>
+            </div>
+
+            {/* Lignes produits */}
+            <div style={{ fontWeight: 700, fontSize: 13, color: "#4a5568", marginBottom: 10 }}>Produits commandés</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+              {form.lignes.map((l, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "2fr 80px 120px 36px", gap: 8, alignItems: "center" }}>
+                  <select value={l.produit} onChange={e => updateLigne(i, "produit", e.target.value)} style={{ ...iS, fontSize: 12, padding: "8px 10px" }}>
+                    <option value="">-- Produit --</option>
+                    {PRODUITS_LISTE.map(p => <option key={p}>{p}</option>)}
+                  </select>
+                  <input type="number" placeholder="Qté" value={l.quantite} onChange={e => updateLigne(i, "quantite", e.target.value)} style={{ ...iS, fontSize: 12, padding: "8px 10px", textAlign: "center" }} />
+                  <input type="number" placeholder="Prix unit." value={l.prixUnitaire} onChange={e => updateLigne(i, "prixUnitaire", e.target.value)} style={{ ...iS, fontSize: 12, padding: "8px 10px" }} />
+                  <button onClick={() => removeLigne(i)} disabled={form.lignes.length === 1} style={{ padding: "8px", background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 8, cursor: "pointer", color: "#e53e3e", fontWeight: 700 }}>✕</button>
+                </div>
+              ))}
+            </div>
+            <button onClick={addLigne} style={{ width: "100%", padding: "9px", background: "#f7fafc", border: "2px dashed #e2e8f0", borderRadius: 10, cursor: "pointer", color: "#4a5568", fontWeight: 700, fontSize: 13, marginBottom: 16 }}>
+              + Ajouter un produit
+            </button>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={lS}>Notes (optionnel)</label>
+              <textarea placeholder="Instructions de paiement, remarques..." value={form.notes} onChange={e => setForm(f=>({...f, notes: e.target.value}))} style={{ ...iS, height: 60, resize: "vertical" }} />
+            </div>
+
+            <button onClick={handleSave} disabled={saving} style={{ width: "100%", padding: "14px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 900, fontSize: 15, cursor: "pointer" }}>
+              {saving ? "Enregistrement..." : editId ? "Mettre à jour la facture" : "Créer la facture"}
+            </button>
+          </div>
+
+          {/* Apercu facture */}
+          <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", position: "sticky", top: 20 }}>
+            <div style={{ background: "linear-gradient(135deg,#744210,#d69e2e)", padding: "16px 20px", color: "white" }}>
+              <div style={{ fontWeight: 900, fontSize: 16 }}>💊 DjamePharmaSales</div>
+              <div style={{ fontSize: 11, opacity: 0.85, marginTop: 2 }}>Distribution Pharmaceutique</div>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, fontSize: 12 }}>
+                <div><span style={{ color: "#718096" }}>N°</span> <b style={{ color: "#744210" }}>{editId ? (factures.find(f=>f.id===editId)?.numero||"—") : getNextNumero()}</b></div>
+                <div><span style={{ color: "#718096" }}>Date:</span> <b>{form.date ? new Date(form.date+"T00:00:00").toLocaleDateString("fr-FR") : "—"}</b></div>
+              </div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: "#1a365d", marginBottom: 12 }}>🏥 {form.pharmacie || "Pharmacie..."}</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11, marginBottom: 12 }}>
+                <thead><tr style={{ background: "#f7fafc" }}>
+                  <th style={{ padding: "6px 8px", textAlign: "left", color: "#4a5568", borderBottom: "2px solid #e2e8f0" }}>Produit</th>
+                  <th style={{ padding: "6px 8px", textAlign: "center", color: "#4a5568", borderBottom: "2px solid #e2e8f0" }}>Qté</th>
+                  <th style={{ padding: "6px 8px", textAlign: "right", color: "#4a5568", borderBottom: "2px solid #e2e8f0" }}>Total</th>
+                </tr></thead>
+                <tbody>
+                  {form.lignes.filter(l => l.produit).map((l, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid #f7fafc" }}>
+                      <td style={{ padding: "5px 8px", fontSize: 10 }}>{l.produit.replace("ANADOR ","").replace(" COMPRIMES","")}</td>
+                      <td style={{ padding: "5px 8px", textAlign: "center" }}>{l.quantite||"—"}</td>
+                      <td style={{ padding: "5px 8px", textAlign: "right", fontWeight: 700 }}>
+                        {l.quantite && l.prixUnitaire ? ((parseFloat(l.quantite)||0)*(parseFloat(l.prixUnitaire)||0)).toLocaleString("fr-FR") : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ background: "#fffff0", border: "2px solid #d69e2e", borderRadius: 8, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontWeight: 800, color: "#744210" }}>TOTAL</span>
+                <span style={{ fontWeight: 900, fontSize: 16, color: "#744210" }}>{totalFacture(form.lignes).toLocaleString("fr-FR")} FCFA</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
