@@ -120,15 +120,25 @@ const PRODUITS_PRIX = {
   "Silver Care Pâte kid": 1300,
   "Silver Care Pâte PHARMA PLUS MEDIUM": 2500,
   "Silver Care Pâte PHARMA PLUS SENSITIVE": 2500,
+  "Silver Care ONE MEDIUM": 3900,
+  "Silver Care ANTI PLAQUE - ANTI BATTERIE": 2800,
+  "Silver Care BAD MEDIUM PLUS - PHARMA PLUS MEDIUM": 2500,
+  "DENTIFRICE WHITHENING - PATE WHITHENING": 2200,
+  "42/50 EMBALLAGE SACHET BRETELLE MOYEN": 35,
+  "33/40 EMBALLAGE SACHET BRETELLE MOYEN": 24,
+  "23/36 EMBALLAGE SACHET BRETELLE MOYEN": 20,
+  "55/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
+  "35+10/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
 };
 const PRODUITS = Object.keys(PRODUITS_PRIX);
 
 // Produits groupes par gamme pour les delegues
 const GAMMES = {
   "L'Acrose": Object.keys(PRODUITS_PRIX).filter(p => p.toLowerCase().startsWith("l'acrose")),
-  "Silver Care": Object.keys(PRODUITS_PRIX).filter(p => p.toLowerCase().startsWith("silver care")),
+  "Silver Care": Object.keys(PRODUITS_PRIX).filter(p => p.toLowerCase().startsWith("silver care") || p.toLowerCase().startsWith("dentifrice")),
   "Helan": Object.keys(PRODUITS_PRIX).filter(p => p.toLowerCase().startsWith("helan")),
   "Piave": Object.keys(PRODUITS_PRIX).filter(p => p.toLowerCase().startsWith("piave")),
+  "Emballages": Object.keys(PRODUITS_PRIX).filter(p => p.toLowerCase().includes("emballage") || p.toLowerCase().includes("sachet")),
 };
 
 // ═══════════════════════════════════════════════
@@ -2906,15 +2916,15 @@ function ComptabiliteAdmin() {
     "Silver Care Pâte kid",
     "Silver Care Pâte PHARMA PLUS MEDIUM",
     "Silver Care Pâte PHARMA PLUS SENSITIVE",
-    "Silver Care ONE MEDIUM": 3900,
-    "Silver Care ANTI PLAQUE - ANTI BATTERIE": 2800,
-    "Silver Care BAD MEDIUM PLUS - PHARMA PLUS MEDIUM": 2500,
-    "DENTIFRICE WHITHENING - PATE WHITHENING": 2200,
-    "42/50 EMBALLAGE SACHET BRETELLE MOYEN": 35,
-    "33/40 EMBALLAGE SACHET BRETELLE MOYEN": 24,
-    "23/36 EMBALLAGE SACHET BRETELLE MOYEN": 20,
-    "55/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
-    "35+10/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
+    "Silver Care ONE MEDIUM",
+    "Silver Care ANTI PLAQUE - ANTI BATTERIE",
+    "Silver Care BAD MEDIUM PLUS - PHARMA PLUS MEDIUM",
+    "DENTIFRICE WHITHENING - PATE WHITHENING",
+    "42/50 EMBALLAGE SACHET BRETELLE MOYEN",
+    "33/40 EMBALLAGE SACHET BRETELLE MOYEN",
+    "23/36 EMBALLAGE SACHET BRETELLE MOYEN",
+    "55/60 EMBALLAGE SACHET BRETELLE GRAND",
+    "35+10/60 EMBALLAGE SACHET BRETELLE GRAND",
   ];
 
   useEffect(() => {
@@ -2997,6 +3007,15 @@ function ComptabiliteAdmin() {
     "Silver Care Pâte kid": 1300,
     "Silver Care Pâte PHARMA PLUS MEDIUM": 2500,
     "Silver Care Pâte PHARMA PLUS SENSITIVE": 2500,
+    "Silver Care ONE MEDIUM": 3900,
+    "Silver Care ANTI PLAQUE - ANTI BATTERIE": 2800,
+    "Silver Care BAD MEDIUM PLUS - PHARMA PLUS MEDIUM": 2500,
+    "DENTIFRICE WHITHENING - PATE WHITHENING": 2200,
+    "42/50 EMBALLAGE SACHET BRETELLE MOYEN": 35,
+    "33/40 EMBALLAGE SACHET BRETELLE MOYEN": 24,
+    "23/36 EMBALLAGE SACHET BRETELLE MOYEN": 20,
+    "55/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
+    "35+10/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
   };
   const updateLigne = (i, field, val) => setForm(f => ({
     ...f,
