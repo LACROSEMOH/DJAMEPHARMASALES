@@ -120,6 +120,10 @@ const PRODUITS_PRIX = {
   "Silver Care Pâte kid": 1300,
   "Silver Care Pâte PHARMA PLUS MEDIUM": 2500,
   "Silver Care Pâte PHARMA PLUS SENSITIVE": 2500,
+  "Silver Care ONE MEDIUM": 3900,
+  "Silver Care ANTI PLAQUE - ANTI BATTERIE": 2800,
+  "Silver Care BAD MEDIUM PLUS - PHARMA PLUS MEDIUM": 2500,
+  "DENTIFRICE WHITHENING - PATE WHITHENING": 2200,
 };
 const PRODUITS = Object.keys(PRODUITS_PRIX);
 
@@ -2986,6 +2990,10 @@ function ComptabiliteAdmin() {
     "Silver Care Pâte kid": 1300,
     "Silver Care Pâte PHARMA PLUS MEDIUM": 2500,
     "Silver Care Pâte PHARMA PLUS SENSITIVE": 2500,
+    "Silver Care ONE MEDIUM": 3900,
+    "Silver Care ANTI PLAQUE - ANTI BATTERIE": 2800,
+    "Silver Care BAD MEDIUM PLUS - PHARMA PLUS MEDIUM": 2500,
+    "DENTIFRICE WHITHENING - PATE WHITHENING": 2200,
   };
   const updateLigne = (i, field, val) => setForm(f => ({
     ...f,
