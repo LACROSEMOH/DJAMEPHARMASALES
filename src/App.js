@@ -118,10 +118,9 @@ const PRODUITS_PRIX = {
   "Silver Care Fil dentaire": 2000,
   "Silver Care kit (Brosse & Pâte)": 2800,
   "Silver Care Pâte kid": 1300,
-  "Silver Care Pâte FOUR FRUIT 3ANS +": 1300,
   "Silver Care Pâte PHARMA PLUS MEDIUM": 2500,
   "Silver Care Pâte PHARMA PLUS SENSITIVE": 2500,
-  "Silver Care BROSSE ONE MEDIUM": 3900,
+  "Silver Care ONE MEDIUM": 3900,
   "Silver Care ANTI PLAQUE - ANTI BATTERIE": 2800,
   "Silver Care BAD MEDIUM PLUS - PHARMA PLUS MEDIUM": 2500,
   "DENTIFRICE WHITHENING - PATE WHITHENING": 2200,
@@ -2168,6 +2167,7 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, 
     { id: "delegues",    label: "Delegues Medicaux" },
     { id: "animations",  label: "Animations Commerciales" },
     { id: "comptabilite", label: "Comptabilite & Factures" },
+    { id: "projets",      label: "Projets & Taches" },
   ];
 
   const RankingCard = ({ ranking, dataset, title }) => (
@@ -2519,6 +2519,11 @@ function AdminInterface({ sales, onDelete, onResetAll, onLogout, user, loading, 
             {/* ── ONGLET COMPTABILITE ── */}
             {activeTab === "comptabilite" && (
               <ComptabiliteAdmin />
+            )}
+
+            {/* ── ONGLET PROJETS ── */}
+            {activeTab === "projets" && (
+              <ProjetsAdmin user={user} />
             )}
             )}
           </>
@@ -3283,6 +3288,291 @@ function ComptabiliteAdmin() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════
+// SUIVI PROJETS & TACHES
+// ═══════════════════════════════════════════════
+function ProjetsAdmin({ user }) {
+  const MEMBRES = ["MOHAMED KONE YASSINE","ANNE N'GORAN","TIE LOU CLAUDINE","AICHA DIALLO",
+    "OUATTARA YASMINE","DOUCOURE ASSITA","DELEGUE 3","DELEGUE 4"];
+  const STATUTS = ["En attente","En cours","Termine"];
+  const PRIORITES = ["Urgent","Normal","Faible"];
+  const COULEUR_STATUT = { "En attente": { bg:"#fffff0", border:"#f6e05e", text:"#744210" }, "En cours": { bg:"#ebf4ff", border:"#bee3f8", text:"#2b6cb0" }, "Termine": { bg:"#f0fff4", border:"#9ae6b4", text:"#276749" } };
+  const COULEUR_PRIO = { "Urgent": { bg:"#fff5f5", color:"#e53e3e" }, "Normal": { bg:"#fffff0", color:"#744210" }, "Faible": { bg:"#f7fafc", color:"#718096" } };
+  const EMOJI_PRIO = { "Urgent": "🔴", "Normal": "🟡", "Faible": "⚪" };
+
+  const [taches, setTaches] = useState([]);
+  const [view, setView] = useState("kanban");
+  const [filterStatut, setFilterStatut] = useState("");
+  const [filterPrio, setFilterPrio] = useState("");
+  const [form, setForm] = useState({ titre:"", projet:"", statut:"En attente", priorite:"Normal", dateLimit:"", assigne:"", notes:"" });
+  const [editId, setEditId] = useState(null);
+  const [showForm, setShowForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "tachesProjet"), (snap) => {
+      setTaches(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  const handleSave = async () => {
+    if (!form.titre.trim()) return alert("Le titre est obligatoire.");
+    setSaving(true);
+    try {
+      const data = { ...form, updatedAt: new Date().toISOString(), createdBy: user.nom };
+      if (!editId) data.createdAt = new Date().toISOString();
+      if (editId) { await updateDoc(doc(db, "tachesProjet", editId), data); }
+      else { await addDoc(collection(db, "tachesProjet"), data); }
+      setForm({ titre:"", projet:"", statut:"En attente", priorite:"Normal", dateLimit:"", assigne:"", notes:"" });
+      setEditId(null); setShowForm(false);
+    } catch(e) { alert("Erreur: " + e.message); }
+    setSaving(false);
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Supprimer cette tache ?")) return;
+    try { await deleteDoc(doc(db, "tachesProjet", id)); } catch(e) {}
+  };
+
+  const handleEdit = (t) => {
+    setForm({ titre: t.titre, projet: t.projet||"", statut: t.statut, priorite: t.priorite, dateLimit: t.dateLimit||"", assigne: t.assigne||"", notes: t.notes||"" });
+    setEditId(t.id); setShowForm(true);
+  };
+
+  const changeStatut = async (id, newStatut) => {
+    try { await updateDoc(doc(db, "tachesProjet", id), { statut: newStatut, updatedAt: new Date().toISOString() }); } catch(e) {}
+  };
+
+  const tachesFiltrees = taches.filter(t =>
+    (!filterStatut || t.statut === filterStatut) &&
+    (!filterPrio || t.priorite === filterPrio)
+  );
+
+  const isOverdue = (t) => t.dateLimit && t.statut !== "Termine" && new Date(t.dateLimit) < new Date();
+
+  // Stats
+  const stats = {
+    total: taches.length,
+    urgent: taches.filter(t => t.priorite === "Urgent" && t.statut !== "Termine").length,
+    enCours: taches.filter(t => t.statut === "En cours").length,
+    termine: taches.filter(t => t.statut === "Termine").length,
+    enRetard: taches.filter(t => isOverdue(t)).length,
+  };
+
+  const TacheCard = ({ t }) => {
+    const cs = COULEUR_STATUT[t.statut] || COULEUR_STATUT["En attente"];
+    const cp = COULEUR_PRIO[t.priorite] || COULEUR_PRIO["Normal"];
+    const overdue = isOverdue(t);
+    return (
+      <div style={{ background: "white", borderRadius: 12, border: "1.5px solid", borderColor: overdue ? "#fc8181" : cs.border, boxShadow: "0 2px 8px rgba(0,0,0,0.06)", padding: "14px 16px", marginBottom: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, fontSize: 14, color: "#1a365d", marginBottom: 2 }}>{t.titre}</div>
+            {t.projet && <div style={{ fontSize: 11, color: "#718096", fontWeight: 600 }}>📁 {t.projet}</div>}
+          </div>
+          <span style={{ background: cp.bg, color: cp.color, fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 12, whiteSpace: "nowrap" }}>{EMOJI_PRIO[t.priorite]} {t.priorite}</span>
+        </div>
+        {t.notes && <div style={{ fontSize: 12, color: "#4a5568", marginBottom: 8, fontStyle: "italic", lineHeight: 1.4 }}>{t.notes}</div>}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+          {t.assigne && <span style={{ background: "#fffff0", color: "#744210", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 12 }}>👤 {t.assigne}</span>}
+          {t.dateLimit && <span style={{ background: overdue ? "#fff5f5" : "#f7fafc", color: overdue ? "#e53e3e" : "#4a5568", fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 12 }}>
+            {overdue ? "⚠️" : "📅"} {new Date(t.dateLimit+"T00:00:00").toLocaleDateString("fr-FR")}
+          </span>}
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <select value={t.statut} onChange={e => changeStatut(t.id, e.target.value)} style={{ flex: 1, padding: "5px 8px", borderRadius: 7, border: "1.5px solid", borderColor: cs.border, background: cs.bg, color: cs.text, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>
+            {STATUTS.map(s => <option key={s}>{s}</option>)}
+          </select>
+          <button onClick={() => handleEdit(t)} style={{ padding: "5px 10px", background: "#fffff0", border: "1px solid #d69e2e", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#744210" }}>✏️</button>
+          <button onClick={() => handleDelete(t.id)} style={{ padding: "5px 8px", background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 7, cursor: "pointer", color: "#e53e3e", fontSize: 11 }}>✕</button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 20 }}>
+        {[
+          { label: "Total", val: stats.total, color: "#2b6cb0", bg: "#ebf4ff" },
+          { label: "En cours", val: stats.enCours, color: "#744210", bg: "#fffff0" },
+          { label: "Urgent", val: stats.urgent, color: "#e53e3e", bg: "#fff5f5" },
+          { label: "Termines", val: stats.termine, color: "#276749", bg: "#f0fff4" },
+          { label: "En retard", val: stats.enRetard, color: "#e53e3e", bg: "#fff5f5" },
+        ].map(s => (
+          <div key={s.label} style={{ background: s.bg, borderRadius: 12, padding: "14px 16px", textAlign: "center", border: "1.5px solid", borderColor: s.bg }}>
+            <div style={{ fontSize: 24, fontWeight: 900, color: s.color }}>{s.val}</div>
+            <div style={{ fontSize: 11, color: "#718096", fontWeight: 700, marginTop: 2 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+        <button onClick={() => { setShowForm(true); setEditId(null); setForm({ titre:"", projet:"", statut:"En attente", priorite:"Normal", dateLimit:"", assigne:"", notes:"" }); }} style={{ padding: "9px 18px", background: "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 8, fontWeight: 800, cursor: "pointer", fontSize: 13 }}>
+          + Nouvelle tache
+        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[{ id:"kanban", label:"Kanban" }, { id:"liste", label:"Liste" }].map(v => (
+            <button key={v.id} onClick={() => setView(v.id)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: view === v.id ? "#1a365d" : "white", color: view === v.id ? "white" : "#4a5568", fontWeight: 700, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>{v.label}</button>
+          ))}
+        </div>
+        <select value={filterStatut} onChange={e => setFilterStatut(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontWeight: 600, fontSize: 12 }}>
+          <option value="">Tous statuts</option>
+          {STATUTS.map(s => <option key={s}>{s}</option>)}
+        </select>
+        <select value={filterPrio} onChange={e => setFilterPrio(e.target.value)} style={{ padding: "8px 12px", borderRadius: 8, border: "1.5px solid #e2e8f0", fontWeight: 600, fontSize: 12 }}>
+          <option value="">Toutes priorites</option>
+          {PRIORITES.map(p => <option key={p}>{p}</option>)}
+        </select>
+      </div>
+
+      {/* Formulaire modal */}
+      {showForm && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "white", borderRadius: 16, padding: 28, width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div style={{ fontWeight: 900, fontSize: 17, color: "#744210" }}>{editId ? "Modifier la tache" : "Nouvelle tache"}</div>
+              <button onClick={() => { setShowForm(false); setEditId(null); }} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#718096" }}>✕</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={lS}>Titre *</label>
+                <input placeholder="Titre de la tache" value={form.titre} onChange={e => setForm(f=>({...f,titre:e.target.value}))} style={iS} />
+              </div>
+              <div>
+                <label style={lS}>Projet / Categorie</label>
+                <input placeholder="Ex: Marketing, Logistique, RH..." value={form.projet} onChange={e => setForm(f=>({...f,projet:e.target.value}))} style={iS} />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={lS}>Statut</label>
+                  <select value={form.statut} onChange={e => setForm(f=>({...f,statut:e.target.value}))} style={iS}>
+                    {STATUTS.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={lS}>Priorite</label>
+                  <select value={form.priorite} onChange={e => setForm(f=>({...f,priorite:e.target.value}))} style={iS}>
+                    {PRIORITES.map(p => <option key={p}>{p}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={lS}>Date limite</label>
+                  <input type="date" value={form.dateLimit} onChange={e => setForm(f=>({...f,dateLimit:e.target.value}))} style={iS} />
+                </div>
+                <div>
+                  <label style={lS}>Assigne a</label>
+                  <select value={form.assigne} onChange={e => setForm(f=>({...f,assigne:e.target.value}))} style={iS}>
+                    <option value="">-- Personne --</option>
+                    {MEMBRES.map(m => <option key={m}>{m}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={lS}>Notes / Description</label>
+                <textarea placeholder="Details, instructions..." value={form.notes} onChange={e => setForm(f=>({...f,notes:e.target.value}))} style={{ ...iS, height: 80, resize: "vertical" }} />
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => { setShowForm(false); setEditId(null); }} style={{ flex: 1, padding: "12px", background: "#edf2f7", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}>Annuler</button>
+                <button onClick={handleSave} disabled={saving} style={{ flex: 2, padding: "12px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 10, fontWeight: 900, fontSize: 14, cursor: "pointer" }}>
+                  {saving ? "..." : editId ? "Mettre a jour" : "Creer la tache"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VUE KANBAN */}
+      {view === "kanban" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+          {STATUTS.map(statut => {
+            const cs = COULEUR_STATUT[statut];
+            const items = tachesFiltrees.filter(t => t.statut === statut);
+            return (
+              <div key={statut} style={{ background: "#f7fafc", borderRadius: 14, padding: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "8px 12px", background: cs.bg, borderRadius: 10, border: "1.5px solid " + cs.border }}>
+                  <span style={{ fontWeight: 900, fontSize: 13, color: cs.text }}>{statut}</span>
+                  <span style={{ background: cs.border, color: cs.text, borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: 800 }}>{items.length}</span>
+                </div>
+                {items.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "20px 0", color: "#a0aec0", fontSize: 12 }}>Aucune tache</div>
+                ) : (
+                  items.map(t => <TacheCard key={t.id} t={t} />)
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* VUE LISTE */}
+      {view === "liste" && (
+        <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+          {tachesFiltrees.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 50, color: "#a0aec0" }}>
+              <div style={{ fontSize: 48 }}>📋</div>
+              <div style={{ marginTop: 12, fontWeight: 700 }}>Aucune tache</div>
+            </div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: "#744210", color: "white" }}>
+                  {["Priorite","Titre","Projet","Statut","Assigne","Date limite","Actions"].map(h => (
+                    <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontSize: 12, fontWeight: 700 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tachesFiltrees.sort((a,b) => {
+                  const pOrd = {"Urgent":0,"Normal":1,"Faible":2};
+                  return (pOrd[a.priorite]||1) - (pOrd[b.priorite]||1);
+                }).map((t, idx) => {
+                  const cs = COULEUR_STATUT[t.statut] || COULEUR_STATUT["En attente"];
+                  const cp = COULEUR_PRIO[t.priorite] || COULEUR_PRIO["Normal"];
+                  const overdue = isOverdue(t);
+                  return (
+                    <tr key={t.id} style={{ background: idx%2===0 ? "white" : "#f7fafc", borderBottom: "1px solid #e2e8f0" }}>
+                      <td style={{ padding: "10px 14px" }}>
+                        <span style={{ background: cp.bg, color: cp.color, padding: "3px 8px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>{EMOJI_PRIO[t.priorite]} {t.priorite}</span>
+                      </td>
+                      <td style={{ padding: "10px 14px", fontWeight: 700, color: "#1a365d" }}>
+                        {t.titre}
+                        {t.notes && <div style={{ fontSize: 11, color: "#718096", fontWeight: 400, marginTop: 2 }}>{t.notes.substring(0,60)}{t.notes.length>60?"...":""}</div>}
+                      </td>
+                      <td style={{ padding: "10px 14px", color: "#718096", fontSize: 12 }}>{t.projet||"—"}</td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <span style={{ background: cs.bg, color: cs.text, padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>{t.statut}</span>
+                      </td>
+                      <td style={{ padding: "10px 14px", fontSize: 12, color: "#4a5568" }}>{t.assigne||"—"}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 12, color: overdue ? "#e53e3e" : "#4a5568", fontWeight: overdue ? 700 : 400 }}>
+                        {t.dateLimit ? new Date(t.dateLimit+"T00:00:00").toLocaleDateString("fr-FR") : "—"}
+                        {overdue && <span style={{ marginLeft: 4 }}>⚠️</span>}
+                      </td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <div style={{ display: "flex", gap: 5 }}>
+                          <button onClick={() => handleEdit(t)} style={{ padding: "4px 8px", background: "#fffff0", border: "1px solid #d69e2e", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, color: "#744210" }}>✏️</button>
+                          <button onClick={() => handleDelete(t.id)} style={{ padding: "4px 8px", background: "#fff5f5", border: "1px solid #fed7d7", borderRadius: 6, cursor: "pointer", color: "#e53e3e", fontSize: 11 }}>✕</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
     </div>
