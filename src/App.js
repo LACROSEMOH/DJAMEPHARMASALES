@@ -553,7 +553,8 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
                 <div style={{ color: "#718096", marginTop: 8 }}>Vos ventes ont ete enregistrees. L administrateur les voit maintenant.</div>
               </div>
             ) : (
-              <>
+              <div>
+              {/* Toggle sans vente */}
               <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
                 <button onClick={() => setSansVenteMode(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: !sansVenteMode ? "#2b6cb0" : "white", color: !sansVenteMode ? "white" : "#4a5568", fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
                   📋 Rapport avec ventes
@@ -562,19 +563,17 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
                   🚫 Journee sans vente
                 </button>
               </div>
-
-              {/* Formulaire sans vente */}
               {sansVenteMode ? (
                 <div style={{ background: "white", borderRadius: 18, boxShadow: "0 4px 20px rgba(0,0,0,0.08)", padding: 28 }}>
-                  <div style={{ fontWeight: 800, fontSize: 16, color: "#744210", marginBottom: 6 }}>🚫 Journée sans vente</div>
-                  <div style={{ fontSize: 13, color: "#718096", marginBottom: 20 }}>Signalez une journée sans vente avec un commentaire explicatif</div>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: "#744210", marginBottom: 6 }}>Journee sans vente</div>
+                  <div style={{ fontSize: 13, color: "#718096", marginBottom: 20 }}>Signalez une journee sans vente avec un commentaire explicatif</div>
                   <div style={{ marginBottom: 16 }}>
                     <label style={lS}>Date *</label>
                     <input type="date" value={sansVenteDate} onChange={e => setSansVenteDate(e.target.value)} style={iS} />
                   </div>
                   <div style={{ marginBottom: 20 }}>
                     <label style={lS}>Commentaire / Motif</label>
-                    <textarea placeholder="Ex: Pharmacie fermee, absence du responsable, zone non accessible..." value={sansVenteComment} onChange={e => setSansVenteComment(e.target.value)} style={{ ...iS, height: 100, resize: "vertical" }} />
+                    <textarea placeholder="Ex: Pharmacie fermee, absence du responsable..." value={sansVenteComment} onChange={e => setSansVenteComment(e.target.value)} style={{ ...iS, height: 100, resize: "vertical" }} />
                   </div>
                   <button onClick={handleSansVente} disabled={saving} style={{ width: "100%", padding: "14px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 12, fontWeight: 900, fontSize: 15, cursor: "pointer" }}>
                     {saving ? "Envoi..." : "Envoyer le rapport sans vente"}
@@ -648,6 +647,8 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
                 </div>
               </div>
             )}
+              )}
+              </div>
           </>
         )}
       </div>
