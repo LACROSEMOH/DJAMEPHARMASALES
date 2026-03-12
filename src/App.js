@@ -553,7 +553,7 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
                 <div style={{ color: "#718096", marginTop: 8 }}>Vos ventes ont ete enregistrees. L administrateur les voit maintenant.</div>
               </div>
             ) : (
-              {/* Toggle sans vente */}
+              <>
               <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
                 <button onClick={() => setSansVenteMode(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: !sansVenteMode ? "#2b6cb0" : "white", color: !sansVenteMode ? "white" : "#4a5568", fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
                   📋 Rapport avec ventes
