@@ -548,107 +548,102 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
 
             {submitted ? (
               <div style={{ textAlign: "center", padding: "60px 20px", background: "white", borderRadius: 18, boxShadow: "0 4px 20px rgba(0,0,0,0.08)" }}>
-                <div style={{ fontSize: 60 }}>✅</div>
+                <div style={{ fontSize: 60 }}>&#x2705;</div>
                 <div style={{ fontSize: 20, fontWeight: 800, color: "#2b6cb0", marginTop: 16 }}>Rapport envoye !</div>
                 <div style={{ color: "#718096", marginTop: 8 }}>Vos ventes ont ete enregistrees. L administrateur les voit maintenant.</div>
               </div>
             ) : (
               <div>
-              {/* Toggle sans vente */}
-              <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-                <button onClick={() => setSansVenteMode(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: !sansVenteMode ? "#2b6cb0" : "white", color: !sansVenteMode ? "white" : "#4a5568", fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
-                  📋 Rapport avec ventes
-                </button>
-                <button onClick={() => setSansVenteMode(true)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: sansVenteMode ? "#744210" : "white", color: sansVenteMode ? "white" : "#4a5568", fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
-                  🚫 Journee sans vente
-                </button>
-              </div>
-              {sansVenteMode ? (
-                <div style={{ background: "white", borderRadius: 18, boxShadow: "0 4px 20px rgba(0,0,0,0.08)", padding: 28 }}>
-                  <div style={{ fontWeight: 800, fontSize: 16, color: "#744210", marginBottom: 6 }}>Journee sans vente</div>
-                  <div style={{ fontSize: 13, color: "#718096", marginBottom: 20 }}>Signalez une journee sans vente avec un commentaire explicatif</div>
-                  <div style={{ marginBottom: 16 }}>
-                    <label style={lS}>Date *</label>
-                    <input type="date" value={sansVenteDate} onChange={e => setSansVenteDate(e.target.value)} style={iS} />
-                  </div>
-                  <div style={{ marginBottom: 20 }}>
-                    <label style={lS}>Commentaire / Motif</label>
-                    <textarea placeholder="Ex: Pharmacie fermee, absence du responsable..." value={sansVenteComment} onChange={e => setSansVenteComment(e.target.value)} style={{ ...iS, height: 100, resize: "vertical" }} />
-                  </div>
-                  <button onClick={handleSansVente} disabled={saving} style={{ width: "100%", padding: "14px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 12, fontWeight: 900, fontSize: 15, cursor: "pointer" }}>
-                    {saving ? "Envoi..." : "Envoyer le rapport sans vente"}
+                <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+                  <button onClick={() => setSansVenteMode(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: !sansVenteMode ? "#2b6cb0" : "white", color: !sansVenteMode ? "white" : "#4a5568", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+                    Rapport avec ventes
+                  </button>
+                  <button onClick={() => setSansVenteMode(true)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: sansVenteMode ? "#744210" : "white", color: sansVenteMode ? "white" : "#4a5568", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+                    Journee sans vente
                   </button>
                 </div>
-              ) : (
-              <div style={{ background: "white", borderRadius: 18, boxShadow: "0 4px 20px rgba(0,0,0,0.08)", overflow: "hidden" }}>
-                <div style={{ background: "#ebf4ff", padding: "14px 24px", borderBottom: "1px solid #bee3f8" }}>
-                  <div style={{ fontWeight: 800, fontSize: 16, color: "#1a365d" }}>Nouveau rapport de vente</div>
-                  <div style={{ fontSize: 13, color: "#4a5568", marginTop: 2 }}>Remplissez et soumettez en fin de journee</div>
-                </div>
-                <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <div>
+                {sansVenteMode ? (
+                  <div style={{ background: "white", borderRadius: 18, boxShadow: "0 4px 20px rgba(0,0,0,0.08)", padding: 28 }}>
+                    <div style={{ fontWeight: 800, fontSize: 16, color: "#744210", marginBottom: 6 }}>Journee sans vente</div>
+                    <div style={{ fontSize: 13, color: "#718096", marginBottom: 20 }}>Signalez une journee sans vente avec un commentaire</div>
+                    <div style={{ marginBottom: 16 }}>
                       <label style={lS}>Date *</label>
-                      <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={iS} />
+                      <input type="date" value={sansVenteDate} onChange={e => setSansVenteDate(e.target.value)} style={iS} />
                     </div>
-                    <div>
-                      <label style={lS}>Ville / Quartier</label>
-                      <input placeholder="ex: Cocody" value={form.ville} onChange={e => setForm({ ...form, ville: e.target.value })} style={iS} />
+                    <div style={{ marginBottom: 20 }}>
+                      <label style={lS}>Commentaire / Motif</label>
+                      <textarea placeholder="Ex: Pharmacie fermee, absence du responsable..." value={sansVenteComment} onChange={e => setSansVenteComment(e.target.value)} style={{ ...iS, height: 100, resize: "vertical" }} />
                     </div>
-                    <div style={{ gridColumn: "span 2" }}>
-                      <label style={lS}>Nom de la pharmacie *</label>
-                      <input placeholder="ex: Pharmacie du Plateau" value={form.pharmacie} onChange={e => setForm({ ...form, pharmacie: e.target.value })} style={iS} />
-                    </div>
+                    <button onClick={handleSansVente} disabled={saving} style={{ width: "100%", padding: "14px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 12, fontWeight: 900, fontSize: 15, cursor: "pointer" }}>
+                      {saving ? "Envoi..." : "Envoyer le rapport sans vente"}
+                    </button>
                   </div>
-
-                  <div>
-                    <label style={{ ...lS, fontSize: 14, fontWeight: 800, color: "#1a365d" }}>Produits vendus</label>
-                    <div style={{ background: "#f7fafc", borderRadius: 10, padding: 14, border: "1px solid #e2e8f0" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "2.5fr 0.8fr 1.3fr 1fr 28px", gap: 8, marginBottom: 8 }}>
-                        {["Produit", "Qte", "Prix (FCFA)", "Montant", ""].map(h => (
-                          <div key={h} style={{ fontSize: 10, fontWeight: 700, color: "#718096", textTransform: "uppercase" }}>{h}</div>
-                        ))}
-                      </div>
-                      {form.lignes.map((l, i) => (
-                        <div key={i} style={{ display: "grid", gridTemplateColumns: "2.5fr 0.8fr 1.3fr 1fr 28px", gap: 8, alignItems: "center", marginBottom: 8 }}>
-                          <select value={l.produit} onChange={e => updateLigne(i, "produit", e.target.value)} style={{ ...iS, fontSize: 12 }}>
-                            <option value="">-- Choisir --</option>
-                            {PRODUITS.map(p => <option key={p}>{p}</option>)}
-                          </select>
-                          <input type="number" placeholder="0" min="0" value={l.quantite} onChange={e => updateLigne(i, "quantite", e.target.value)} style={{ ...iS, fontSize: 13 }} />
-                          <input type="number" value={l.prixUnitaire} readOnly style={{ ...iS, fontSize: 13, background: "#f0f4f8", color: "#2b6cb0", fontWeight: 700, cursor: "not-allowed" }} />
-                          <div style={{ fontWeight: 700, fontSize: 13, color: "#276749", textAlign: "right" }}>
-                            {l.quantite && l.prixUnitaire ? fmt((parseFloat(l.quantite) || 0) * (parseFloat(l.prixUnitaire) || 0)) + " F" : "—"}
-                          </div>
-                          {form.lignes.length > 1
-                            ? <button onClick={() => removeLigne(i)} style={{ width: 24, height: 24, borderRadius: 5, background: "#fed7d7", border: "none", color: "#e53e3e", cursor: "pointer", fontWeight: 800 }}>x</button>
-                            : <div />}
+                ) : (
+                  <div style={{ background: "white", borderRadius: 18, boxShadow: "0 4px 20px rgba(0,0,0,0.08)", overflow: "hidden" }}>
+                    <div style={{ background: "#ebf4ff", padding: "14px 24px", borderBottom: "1px solid #bee3f8" }}>
+                      <div style={{ fontWeight: 800, fontSize: 16, color: "#1a365d" }}>Nouveau rapport de vente</div>
+                      <div style={{ fontSize: 13, color: "#4a5568", marginTop: 2 }}>Remplissez et soumettez en fin de journee</div>
+                    </div>
+                    <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                        <div>
+                          <label style={lS}>Date *</label>
+                          <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={iS} />
                         </div>
-                      ))}
-                      <button onClick={addLigne} style={{ marginTop: 4, padding: "7px 0", background: "white", border: "2px dashed #90cdf4", borderRadius: 8, color: "#2b6cb0", fontWeight: 700, cursor: "pointer", width: "100%", fontSize: 13 }}>
-                        + Ajouter un produit
+                        <div>
+                          <label style={lS}>Ville / Quartier</label>
+                          <input placeholder="ex: Cocody" value={form.ville} onChange={e => setForm({ ...form, ville: e.target.value })} style={iS} />
+                        </div>
+                        <div style={{ gridColumn: "span 2" }}>
+                          <label style={lS}>Nom de la pharmacie *</label>
+                          <input placeholder="ex: Pharmacie du Plateau" value={form.pharmacie} onChange={e => setForm({ ...form, pharmacie: e.target.value })} style={iS} />
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ ...lS, fontSize: 14, fontWeight: 800, color: "#1a365d" }}>Produits vendus</label>
+                        <div style={{ background: "#f7fafc", borderRadius: 10, padding: 14, border: "1px solid #e2e8f0" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "2.5fr 0.8fr 1.3fr 1fr 28px", gap: 8, marginBottom: 8 }}>
+                            {["Produit", "Qte", "Prix (FCFA)", "Montant", ""].map(h => (
+                              <div key={h} style={{ fontSize: 10, fontWeight: 700, color: "#718096", textTransform: "uppercase" }}>{h}</div>
+                            ))}
+                          </div>
+                          {form.lignes.map((l, i) => (
+                            <div key={i} style={{ display: "grid", gridTemplateColumns: "2.5fr 0.8fr 1.3fr 1fr 28px", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                              <select value={l.produit} onChange={e => updateLigne(i, "produit", e.target.value)} style={{ ...iS, fontSize: 12 }}>
+                                <option value="">-- Choisir --</option>
+                                {PRODUITS.map(p => <option key={p}>{p}</option>)}
+                              </select>
+                              <input type="number" placeholder="0" min="0" value={l.quantite} onChange={e => updateLigne(i, "quantite", e.target.value)} style={{ ...iS, fontSize: 13 }} />
+                              <input type="number" value={l.prixUnitaire} readOnly style={{ ...iS, fontSize: 13, background: "#f0f4f8", color: "#2b6cb0", fontWeight: 700, cursor: "not-allowed" }} />
+                              <div style={{ fontWeight: 700, fontSize: 13, color: "#276749", textAlign: "right" }}>
+                                {l.quantite && l.prixUnitaire ? fmt((parseFloat(l.quantite) || 0) * (parseFloat(l.prixUnitaire) || 0)) + " F" : "—"}
+                              </div>
+                              {form.lignes.length > 1
+                                ? <button onClick={() => removeLigne(i)} style={{ width: 24, height: 24, borderRadius: 5, background: "#fed7d7", border: "none", color: "#e53e3e", cursor: "pointer", fontWeight: 800 }}>x</button>
+                                : <div />}
+                            </div>
+                          ))}
+                          <button onClick={addLigne} style={{ marginTop: 4, padding: "7px 0", background: "white", border: "2px dashed #90cdf4", borderRadius: 8, color: "#2b6cb0", fontWeight: 700, cursor: "pointer", width: "100%", fontSize: 13 }}>
+                            + Ajouter un produit
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ background: "linear-gradient(135deg,#1a365d,#2b6cb0)", borderRadius: 12, padding: "14px 18px", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontWeight: 600, opacity: 0.9 }}>Total de la journee</span>
+                        <span style={{ fontWeight: 900, fontSize: 22 }}>{fmt(totalForm)} <span style={{ fontSize: 13 }}>FCFA</span></span>
+                      </div>
+                      <div>
+                        <label style={lS}>Remarques (optionnel)</label>
+                        <textarea placeholder="Besoins de la pharmacie, ruptures de stock..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} style={{ ...iS, height: 70, resize: "vertical" }} />
+                      </div>
+                      <button onClick={handleSubmit} disabled={saving} style={{ background: saving ? "#a0aec0" : "linear-gradient(135deg,#1a365d,#2b6cb0)", color: "white", border: "none", borderRadius: 10, padding: "14px", fontSize: 15, fontWeight: 800, cursor: saving ? "not-allowed" : "pointer", width: "100%" }}>
+                        {saving ? "Envoi en cours..." : "Soumettre mon rapport"}
                       </button>
                     </div>
                   </div>
-
-                  <div style={{ background: "linear-gradient(135deg,#1a365d,#2b6cb0)", borderRadius: 12, padding: "14px 18px", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontWeight: 600, opacity: 0.9 }}>Total de la journee</span>
-                    <span style={{ fontWeight: 900, fontSize: 22 }}>{fmt(totalForm)} <span style={{ fontSize: 13 }}>FCFA</span></span>
-                  </div>
-
-                  <div>
-                    <label style={lS}>Remarques (optionnel)</label>
-                    <textarea placeholder="Besoins de la pharmacie, ruptures de stock..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} style={{ ...iS, height: 70, resize: "vertical" }} />
-                  </div>
-
-                  <button onClick={handleSubmit} disabled={saving} style={{ background: saving ? "#a0aec0" : "linear-gradient(135deg,#1a365d,#2b6cb0)", color: "white", border: "none", borderRadius: 10, padding: "14px", fontSize: 15, fontWeight: 800, cursor: saving ? "not-allowed" : "pointer", width: "100%" }}>
-                    {saving ? "Envoi en cours..." : "Soumettre mon rapport"}
-                  </button>
-                </div>
+                )}
               </div>
             )}
-              )}
-              </div>
           </>
         )}
       </div>
