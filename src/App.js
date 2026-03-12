@@ -502,16 +502,18 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
 
   const handleSansVente = async () => {
     if (!sansVenteDate) return alert("Indiquez la date.");
+    const pharmacieVal = typeof sansVenteComment === "object" ? (sansVenteComment.pharmacie||"") : "";
+    const motifVal = typeof sansVenteComment === "object" ? (sansVenteComment.motif||"") : sansVenteComment;
     setSaving(true);
     try {
       await onSubmit({
-        pharmacie: "— Journee sans vente —",
+        pharmacie: pharmacieVal || "— Journee sans vente —",
         date: sansVenteDate,
         commerciale: user.nom,
         lignes: [],
         total: 0,
         sansVente: true,
-        commentaire: sansVenteComment,
+        commentaire: motifVal,
       });
       setSansVenteMode(false);
       setSansVenteComment("");
@@ -594,9 +596,13 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
                       <label style={lS}>Date *</label>
                       <input type="date" value={sansVenteDate} onChange={e => setSansVenteDate(e.target.value)} style={iS} />
                     </div>
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={lS}>Nom de la pharmacie</label>
+                      <input placeholder="ex: Pharmacie du Plateau" value={sansVenteComment.pharmacie||""} onChange={e => setSansVenteComment(c => ({ ...( typeof c === "object" ? c : {}), pharmacie: e.target.value }))} style={iS} />
+                    </div>
                     <div style={{ marginBottom: 20 }}>
                       <label style={lS}>Commentaire / Motif</label>
-                      <textarea placeholder="Ex: Pharmacie fermee, absence du responsable..." value={sansVenteComment} onChange={e => setSansVenteComment(e.target.value)} style={{ ...iS, height: 100, resize: "vertical" }} />
+                      <textarea placeholder="Ex: Pharmacie fermee, absence du responsable..." value={typeof sansVenteComment === "object" ? (sansVenteComment.motif||"") : sansVenteComment} onChange={e => setSansVenteComment(c => ({ ...(typeof c === "object" ? c : {}), motif: e.target.value }))} style={{ ...iS, height: 100, resize: "vertical" }} />
                     </div>
                     <button onClick={handleSansVente} disabled={saving} style={{ width: "100%", padding: "14px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 12, fontWeight: 900, fontSize: 15, cursor: "pointer" }}>
                       {saving ? "Envoi..." : "Envoyer le rapport sans vente"}
