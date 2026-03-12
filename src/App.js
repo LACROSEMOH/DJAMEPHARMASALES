@@ -553,6 +553,34 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
                 <div style={{ color: "#718096", marginTop: 8 }}>Vos ventes ont ete enregistrees. L administrateur les voit maintenant.</div>
               </div>
             ) : (
+              {/* Toggle sans vente */}
+              <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+                <button onClick={() => setSansVenteMode(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: !sansVenteMode ? "#2b6cb0" : "white", color: !sansVenteMode ? "white" : "#4a5568", fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+                  📋 Rapport avec ventes
+                </button>
+                <button onClick={() => setSansVenteMode(true)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: sansVenteMode ? "#744210" : "white", color: sansVenteMode ? "white" : "#4a5568", fontWeight: 800, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+                  🚫 Journee sans vente
+                </button>
+              </div>
+
+              {/* Formulaire sans vente */}
+              {sansVenteMode ? (
+                <div style={{ background: "white", borderRadius: 18, boxShadow: "0 4px 20px rgba(0,0,0,0.08)", padding: 28 }}>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: "#744210", marginBottom: 6 }}>🚫 Journée sans vente</div>
+                  <div style={{ fontSize: 13, color: "#718096", marginBottom: 20 }}>Signalez une journée sans vente avec un commentaire explicatif</div>
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={lS}>Date *</label>
+                    <input type="date" value={sansVenteDate} onChange={e => setSansVenteDate(e.target.value)} style={iS} />
+                  </div>
+                  <div style={{ marginBottom: 20 }}>
+                    <label style={lS}>Commentaire / Motif</label>
+                    <textarea placeholder="Ex: Pharmacie fermee, absence du responsable, zone non accessible..." value={sansVenteComment} onChange={e => setSansVenteComment(e.target.value)} style={{ ...iS, height: 100, resize: "vertical" }} />
+                  </div>
+                  <button onClick={handleSansVente} disabled={saving} style={{ width: "100%", padding: "14px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 12, fontWeight: 900, fontSize: 15, cursor: "pointer" }}>
+                    {saving ? "Envoi..." : "Envoyer le rapport sans vente"}
+                  </button>
+                </div>
+              ) : (
               <div style={{ background: "white", borderRadius: 18, boxShadow: "0 4px 20px rgba(0,0,0,0.08)", overflow: "hidden" }}>
                 <div style={{ background: "#ebf4ff", padding: "14px 24px", borderBottom: "1px solid #bee3f8" }}>
                   <div style={{ fontWeight: 800, fontSize: 16, color: "#1a365d" }}>Nouveau rapport de vente</div>
@@ -2856,11 +2884,18 @@ function AnimationsAdmin({ sales }) {
 // ═══════════════════════════════════════════════
 function ComptabiliteAdmin() {
   const [factures, setFactures] = useState([]);
+  const [depenses, setDepenses] = useState([]);
+  const [mainView, setMainView] = useState("factures");
   const [view, setView] = useState("liste");
   const [form, setForm] = useState({ pharmacie: "", date: new Date().toISOString().split("T")[0], lignes: [{ produit: "", quantite: "", prixUnitaire: "" }], notes: "" });
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState(null);
   const [filterMois, setFilterMois] = useState("");
+  const [depForm, setDepForm] = useState({ libelle: "", categorie: "Carburant", montant: "", date: new Date().toISOString().split("T")[0], notes: "" });
+  const [depEditId, setDepEditId] = useState(null);
+  const [showDepForm, setShowDepForm] = useState(false);
+  const [filterMoisDep, setFilterMoisDep] = useState("");
+  const CATEGORIES_DEP = ["Carburant","Repas / Restauration","Transport","Materiel","Communication","Salaires","Loyer","Publicite","Impots / Taxes","Autres"];
 
   const PRODUITS_LISTE = [
     "L'Acrose Anti acne cream 45 ml",
@@ -2933,6 +2968,15 @@ function ComptabiliteAdmin() {
     "55/60 EMBALLAGE SACHET BRETELLE GRAND",
     "35+10/60 EMBALLAGE SACHET BRETELLE GRAND",
   ];
+
+  useEffect(() => {
+    const unsubDep = onSnapshot(collection(db, "depenses"), (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a,b) => (b.date||"").localeCompare(a.date||""));
+      setDepenses(list);
+    });
+    return () => unsubDep();
+  }, []);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "factures"), (snap) => {
@@ -3060,6 +3104,24 @@ function ComptabiliteAdmin() {
     setEditId(f.id); setView("nouvelle");
   };
 
+  const handleSaveDepense = async () => {
+    if (!depForm.libelle.trim() || !depForm.montant) return alert("Libelle et montant obligatoires.");
+    setSaving(true);
+    try {
+      const data = { ...depForm, montant: parseFloat(depForm.montant), updatedAt: new Date().toISOString() };
+      if (depEditId) { await updateDoc(doc(db, "depenses", depEditId), data); }
+      else { await addDoc(collection(db, "depenses"), { ...data, createdAt: new Date().toISOString() }); }
+      setDepForm({ libelle: "", categorie: "Carburant", montant: "", date: new Date().toISOString().split("T")[0], notes: "" });
+      setDepEditId(null); setShowDepForm(false);
+    } catch(e) { alert("Erreur: " + e.message); }
+    setSaving(false);
+  };
+
+  const handleDeleteDepense = async (id) => {
+    if (!window.confirm("Supprimer cette depense ?")) return;
+    try { await deleteDoc(doc(db, "depenses", id)); } catch(e) {}
+  };
+
   const exportWord = (facture) => {
     const numero = facture.numero || "FAC-???";
     const date = new Date(facture.date + "T00:00:00").toLocaleDateString("fr-FR", { day:"numeric", month:"long", year:"numeric" });
@@ -3130,8 +3192,163 @@ function ComptabiliteAdmin() {
 
   const fmt = (n) => (n||0).toLocaleString("fr-FR") + " FCFA";
 
+  const depFiltrees = filterMoisDep ? depenses.filter(d => d.date && d.date.startsWith(filterMoisDep)) : depenses;
+  const totalDepMois = depFiltrees.reduce((s, d) => s + (d.montant || 0), 0);
+  const moisDisposDep = [...new Set(depenses.map(d => d.date ? d.date.substring(0,7) : "").filter(Boolean))].sort().reverse();
+  const totalFacturesMois = facturesFiltrees.reduce((s, f) => s + (f.total || 0), 0);
+  const solde = totalFacturesMois - totalDepMois;
+  const COULEUR_CAT = { "Carburant":"#ebf4ff","Repas / Restauration":"#fefcbf","Transport":"#e9d8fd","Materiel":"#bee3f8","Communication":"#c6f6d5","Salaires":"#fed7d7","Loyer":"#feebc8","Publicite":"#b2f5ea","Impots / Taxes":"#e2e8f0","Autres":"#f7fafc" };
+
   return (
     <div>
+      {/* Navigation principale Factures / Depenses */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+        {[{ id: "factures", label: "🧾 Factures & Ventes", color: "#744210" }, { id: "depenses", label: "💸 Dépenses", color: "#e53e3e" }, { id: "bilan", label: "📊 Bilan", color: "#276749" }].map(v => (
+          <button key={v.id} onClick={() => setMainView(v.id)} style={{ flex: 1, padding: "12px", borderRadius: 10, border: "none", background: mainView === v.id ? v.color : "white", color: mainView === v.id ? "white" : "#4a5568", fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── BILAN ── */}
+      {mainView === "bilan" && (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 20 }}>
+            <div style={{ background: "white", borderRadius: 14, padding: "20px 24px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", borderLeft: "4px solid #276749" }}>
+              <div style={{ fontSize: 11, color: "#718096", fontWeight: 700, textTransform: "uppercase" }}>Total Recettes</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: "#276749", marginTop: 6 }}>{fmt(totalMois)}</div>
+            </div>
+            <div style={{ background: "white", borderRadius: 14, padding: "20px 24px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", borderLeft: "4px solid #e53e3e" }}>
+              <div style={{ fontSize: 11, color: "#718096", fontWeight: 700, textTransform: "uppercase" }}>Total Depenses</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: "#e53e3e", marginTop: 6 }}>{fmt(totalDepMois)}</div>
+            </div>
+            <div style={{ background: solde >= 0 ? "#f0fff4" : "#fff5f5", borderRadius: 14, padding: "20px 24px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)", borderLeft: "4px solid " + (solde >= 0 ? "#276749" : "#e53e3e") }}>
+              <div style={{ fontSize: 11, color: "#718096", fontWeight: 700, textTransform: "uppercase" }}>Solde Net</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: solde >= 0 ? "#276749" : "#e53e3e", marginTop: 6 }}>{solde >= 0 ? "+" : ""}{fmt(solde)}</div>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div style={{ background: "white", borderRadius: 14, padding: 20, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+              <div style={{ fontWeight: 800, color: "#744210", marginBottom: 14 }}>🧾 Dernières factures</div>
+              {factures.slice(0,5).map(f => (
+                <div key={f.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f7fafc", fontSize: 13 }}>
+                  <span style={{ color: "#4a5568" }}>{f.pharmacie}</span>
+                  <span style={{ fontWeight: 700, color: "#276749" }}>+{fmt(f.total)}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ background: "white", borderRadius: 14, padding: 20, boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+              <div style={{ fontWeight: 800, color: "#e53e3e", marginBottom: 14 }}>💸 Dernières dépenses</div>
+              {depenses.slice(0,5).map(d => (
+                <div key={d.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f7fafc", fontSize: 13 }}>
+                  <span style={{ color: "#4a5568" }}>{d.libelle}</span>
+                  <span style={{ fontWeight: 700, color: "#e53e3e" }}>-{fmt(d.montant)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DEPENSES ── */}
+      {mainView === "depenses" && (
+        <div>
+          <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "center" }}>
+            <button onClick={() => { setShowDepForm(true); setDepEditId(null); setDepForm({ libelle:"", categorie:"Carburant", montant:"", date: new Date().toISOString().split("T")[0], notes:"" }); }} style={{ padding: "9px 18px", background: "linear-gradient(135deg,#c53030,#e53e3e)", color: "white", border: "none", borderRadius: 8, fontWeight: 800, cursor: "pointer", fontSize: 13 }}>
+              + Nouvelle dépense
+            </button>
+            <div style={{ background: "white", borderRadius: 12, padding: "10px 18px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", display: "flex", gap: 10, alignItems: "center" }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "#4a5568" }}>Mois :</label>
+              <select value={filterMoisDep} onChange={e => setFilterMoisDep(e.target.value)} style={{ padding: "6px 10px", borderRadius: 7, border: "1.5px solid #e2e8f0", fontSize: 12 }}>
+                <option value="">Tous</option>
+                {moisDisposDep.map(m => <option key={m} value={m}>{new Date(m+"-01").toLocaleDateString("fr-FR",{month:"long",year:"numeric"})}</option>)}
+              </select>
+            </div>
+            <div style={{ background: "#fff5f5", borderRadius: 12, padding: "10px 18px", fontWeight: 900, color: "#e53e3e", fontSize: 15 }}>
+              Total : {fmt(totalDepMois)}
+            </div>
+          </div>
+
+          {/* Formulaire dépense */}
+          {showDepForm && (
+            <div style={{ background: "white", borderRadius: 14, padding: 22, boxShadow: "0 2px 10px rgba(0,0,0,0.07)", marginBottom: 16, border: "2px solid #fed7d7" }}>
+              <div style={{ fontWeight: 800, fontSize: 15, color: "#e53e3e", marginBottom: 16 }}>{depEditId ? "Modifier la dépense" : "Nouvelle dépense"}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={lS}>Libellé *</label>
+                  <input placeholder="Description de la dépense" value={depForm.libelle} onChange={e => setDepForm(f=>({...f,libelle:e.target.value}))} style={iS} />
+                </div>
+                <div>
+                  <label style={lS}>Catégorie</label>
+                  <select value={depForm.categorie} onChange={e => setDepForm(f=>({...f,categorie:e.target.value}))} style={iS}>
+                    {CATEGORIES_DEP.map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={lS}>Date *</label>
+                  <input type="date" value={depForm.date} onChange={e => setDepForm(f=>({...f,date:e.target.value}))} style={iS} />
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label style={lS}>Montant (FCFA) *</label>
+                  <input type="number" placeholder="0" value={depForm.montant} onChange={e => setDepForm(f=>({...f,montant:e.target.value}))} style={iS} />
+                </div>
+                <div>
+                  <label style={lS}>Notes</label>
+                  <input placeholder="Remarques optionnelles..." value={depForm.notes} onChange={e => setDepForm(f=>({...f,notes:e.target.value}))} style={iS} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => { setShowDepForm(false); setDepEditId(null); }} style={{ flex: 1, padding: "11px", background: "#edf2f7", border: "none", borderRadius: 10, fontWeight: 700, cursor: "pointer" }}>Annuler</button>
+                <button onClick={handleSaveDepense} disabled={saving} style={{ flex: 2, padding: "11px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#c53030,#e53e3e)", color: "white", border: "none", borderRadius: 10, fontWeight: 900, cursor: "pointer" }}>
+                  {saving ? "..." : depEditId ? "Mettre a jour" : "Enregistrer la dépense"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {depFiltrees.length === 0 ? (
+            <div style={{ background: "white", borderRadius: 14, padding: 50, textAlign: "center", color: "#a0aec0", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+              <div style={{ fontSize: 48 }}>💸</div>
+              <div style={{ marginTop: 12, fontWeight: 700 }}>Aucune dépense enregistrée</div>
+            </div>
+          ) : (
+            <div style={{ background: "white", borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#c53030", color: "white" }}>
+                    {["Date","Libellé","Catégorie","Montant","Notes","Actions"].map(h => (
+                      <th key={h} style={{ padding: "11px 14px", textAlign: "left", fontSize: 12, fontWeight: 700 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {depFiltrees.map((d, idx) => (
+                    <tr key={d.id} style={{ background: idx%2===0 ? "white" : "#fff5f5", borderBottom: "1px solid #fed7d7" }}>
+                      <td style={{ padding: "10px 14px", color: "#4a5568" }}>{d.date ? new Date(d.date+"T00:00:00").toLocaleDateString("fr-FR") : "—"}</td>
+                      <td style={{ padding: "10px 14px", fontWeight: 700, color: "#1a365d" }}>{d.libelle}</td>
+                      <td style={{ padding: "10px 14px" }}><span style={{ background: COULEUR_CAT[d.categorie]||"#f7fafc", padding: "2px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>{d.categorie}</span></td>
+                      <td style={{ padding: "10px 14px", fontWeight: 800, color: "#e53e3e" }}>{fmt(d.montant)}</td>
+                      <td style={{ padding: "10px 14px", color: "#718096", fontSize: 12 }}>{d.notes||"—"}</td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <div style={{ display: "flex", gap: 5 }}>
+                          <button onClick={() => { setDepForm({ libelle:d.libelle, categorie:d.categorie, montant:String(d.montant), date:d.date, notes:d.notes||"" }); setDepEditId(d.id); setShowDepForm(true); }} style={{ padding:"4px 8px", background:"#fffff0", border:"1px solid #d69e2e", borderRadius:6, cursor:"pointer", fontSize:11, fontWeight:700, color:"#744210" }}>✏️</button>
+                          <button onClick={() => handleDeleteDepense(d.id)} style={{ padding:"4px 8px", background:"#fff5f5", border:"1px solid #fed7d7", borderRadius:6, cursor:"pointer", color:"#e53e3e", fontSize:11 }}>✕</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── FACTURES ── */}
+      {mainView === "factures" && (
+      <div>
       {/* Actions */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
         {[{ id: "liste", label: "📋 Liste des factures" }, { id: "nouvelle", label: editId ? "✏️ Modifier la facture" : "➕ Nouvelle facture" }].map(v => (
@@ -3290,6 +3507,8 @@ function ComptabiliteAdmin() {
             </div>
           </div>
         </div>
+      )}
+      </div>
       )}
     </div>
   );
