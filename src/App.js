@@ -477,6 +477,9 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
   const [form, setForm] = useState(emptyForm());
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sansVenteMode, setSansVenteMode] = useState(false);
+  const [sansVenteDate, setSansVenteDate] = useState(new Date().toISOString().split("T")[0]);
+  const [sansVenteComment, setSansVenteComment] = useState("");
   const [formDelegue, setFormDelegue] = useState({ nom: "", pass: "" });
   const [editDelegueId, setEditDelegueId] = useState(null);
   const [commTab, setCommTab] = useState("rapport");
@@ -496,6 +499,27 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
     }
     return { ...f, lignes };
   });
+
+  const handleSansVente = async () => {
+    if (!sansVenteDate) return alert("Indiquez la date.");
+    setSaving(true);
+    try {
+      await onSubmit({
+        pharmacie: "— Journee sans vente —",
+        date: sansVenteDate,
+        commerciale: user.nom,
+        lignes: [],
+        total: 0,
+        sansVente: true,
+        commentaire: sansVenteComment,
+      });
+      setSansVenteMode(false);
+      setSansVenteComment("");
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 3000);
+    } catch(e) { alert("Erreur: " + e.message); }
+    setSaving(false);
+  };
 
   const handleSubmit = async () => {
     if (!form.pharmacie || !form.date) return alert("Renseignez la date et le nom de la pharmacie.");
