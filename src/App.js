@@ -131,6 +131,8 @@ const PRODUITS_PRIX = {
   "55/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
   "35+10/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
   "HELAN BIMBI RIZ PARFUM POUDRE": 6300,
+  "Silver Care Pâte Dent four fruit 3+": 1300,
+  "Silver Care Brosse kid brush ": 1500,
 };
 const PRODUITS = Object.keys(PRODUITS_PRIX);
 
