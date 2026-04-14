@@ -25,8 +25,8 @@ const COMMERCIALES = [
   { nom: "ANNE N'GORAN",      pass: "ANNEDJAME11" },
   { nom: "TIE LOU CLAUDINE",  pass: "LOUDJAME12" },
   { nom: "AICHA DIALLO",      pass: "AICHADJAME13" },
-  { nom: "ANNIMATRICE1",      pass: "ANIMDJAME14" },
-  { nom: "ANNIMATRICE2",      pass: "ANIMDJAME15" },
+  { nom: "KONAN EUNICE",      pass: "EUNIDJAME14" },
+  { nom: "DOUMBIA AMIE",      pass: "AMIDJAME15" },
 ];
 const ADMINS = [
   { login: "TOURE AWA DIA",        pass: "AWADJAME26" },
