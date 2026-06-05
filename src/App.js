@@ -25,8 +25,8 @@ const COMMERCIALES = [
   { nom: "ANNE N'GORAN",      pass: "ANNEDJAME11" },
   { nom: "TIE LOU CLAUDINE",  pass: "LOUDJAME12" },
   { nom: "AICHA DIALLO",      pass: "AICHADJAME13" },
-  { nom: "KONAN EUNICE",      pass: "EUNIDJAME14" },
-  { nom: "DACOURY GRACE",      pass: "DACDJAME15" },
+  { nom: "ANNIMATRICE1",      pass: "ANIMDJAME14" },
+  { nom: "ANNIMATRICE2",      pass: "ANIMDJAME15" },
 ];
 const ADMINS = [
   { login: "TOURE AWA DIA",        pass: "AWADJAME26" },
@@ -130,9 +130,6 @@ const PRODUITS_PRIX = {
   "23/36 EMBALLAGE SACHET BRETELLE MOYEN": 20,
   "55/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
   "35+10/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
-  "HELAN BIMBI RIZ PARFUM POUDRE": 6300,
-  "Silver Care Pâte Dent four fruit 3+": 1300,
-  "Silver Care Brosse kid brush ": 1500,
 };
 const PRODUITS = Object.keys(PRODUITS_PRIX);
 
@@ -480,9 +477,6 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
   const [form, setForm] = useState(emptyForm());
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [sansVenteMode, setSansVenteMode] = useState(false);
-  const [sansVenteDate, setSansVenteDate] = useState(new Date().toISOString().split("T")[0]);
-  const [sansVenteComment, setSansVenteComment] = useState("");
   const [formDelegue, setFormDelegue] = useState({ nom: "", pass: "" });
   const [editDelegueId, setEditDelegueId] = useState(null);
   const [commTab, setCommTab] = useState("rapport");
@@ -502,29 +496,6 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
     }
     return { ...f, lignes };
   });
-
-  const handleSansVente = async () => {
-    if (!sansVenteDate) return alert("Indiquez la date.");
-    const pharmacieVal = typeof sansVenteComment === "object" ? (sansVenteComment.pharmacie||"") : "";
-    const motifVal = typeof sansVenteComment === "object" ? (sansVenteComment.motif||"") : sansVenteComment;
-    setSaving(true);
-    try {
-      await onSubmit({
-        pharmacie: pharmacieVal || "— Journee sans vente —",
-        date: sansVenteDate,
-        commerciale: user.nom,
-        lignes: [],
-        total: 0,
-        sansVente: true,
-        commentaire: motifVal,
-      });
-      setSansVenteMode(false);
-      setSansVenteComment("");
-      setSubmitted(true);
-      setTimeout(() => setSubmitted(false), 3000);
-    } catch(e) { alert("Erreur: " + e.message); }
-    setSaving(false);
-  };
 
   const handleSubmit = async () => {
     if (!form.pharmacie || !form.date) return alert("Renseignez la date et le nom de la pharmacie.");
@@ -599,13 +570,9 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
                       <label style={lS}>Date *</label>
                       <input type="date" value={sansVenteDate} onChange={e => setSansVenteDate(e.target.value)} style={iS} />
                     </div>
-                    <div style={{ marginBottom: 16 }}>
-                      <label style={lS}>Nom de la pharmacie</label>
-                      <input placeholder="ex: Pharmacie du Plateau" value={sansVenteComment.pharmacie||""} onChange={e => setSansVenteComment(c => ({ ...( typeof c === "object" ? c : {}), pharmacie: e.target.value }))} style={iS} />
-                    </div>
                     <div style={{ marginBottom: 20 }}>
                       <label style={lS}>Commentaire / Motif</label>
-                      <textarea placeholder="Ex: Pharmacie fermee, absence du responsable..." value={typeof sansVenteComment === "object" ? (sansVenteComment.motif||"") : sansVenteComment} onChange={e => setSansVenteComment(c => ({ ...(typeof c === "object" ? c : {}), motif: e.target.value }))} style={{ ...iS, height: 100, resize: "vertical" }} />
+                      <textarea placeholder="Ex: Pharmacie fermee, absence du responsable..." value={sansVenteComment} onChange={e => setSansVenteComment(e.target.value)} style={{ ...iS, height: 100, resize: "vertical" }} />
                     </div>
                     <button onClick={handleSansVente} disabled={saving} style={{ width: "100%", padding: "14px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 12, fontWeight: 900, fontSize: 15, cursor: "pointer" }}>
                       {saving ? "Envoi..." : "Envoyer le rapport sans vente"}
@@ -2916,7 +2883,7 @@ function ComptabiliteAdmin() {
   const [depenses, setDepenses] = useState([]);
   const [mainView, setMainView] = useState("factures");
   const [view, setView] = useState("liste");
-  const [form, setForm] = useState({ pharmacie: "", date: new Date().toISOString().split("T")[0], lignes: [{ produit: "", quantite: "", prixUnitaire: "" }], notes: "" });
+  const [form, setForm] = useState({ pharmacie: "", date: new Date().toISOString().split("T")[0], lignes: [{ produit: "", quantite: "", prixUnitaire: "" }], notes: "", statut: "Non paye" });
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState(null);
   const [filterMois, setFilterMois] = useState("");
@@ -2996,9 +2963,6 @@ function ComptabiliteAdmin() {
     "23/36 EMBALLAGE SACHET BRETELLE MOYEN",
     "55/60 EMBALLAGE SACHET BRETELLE GRAND",
     "35+10/60 EMBALLAGE SACHET BRETELLE GRAND",
-    "HELAN BIMBI RIZ PARFUM POUDRE",
-    "Silver Care Pâte Dent four fruit 3+",
-    "Silver Care Brosse kid brush ",
   ];
 
   useEffect(() => {
@@ -3099,9 +3063,6 @@ function ComptabiliteAdmin() {
     "23/36 EMBALLAGE SACHET BRETELLE MOYEN": 20,
     "55/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
     "35+10/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
-    "HELAN BIMBI RIZ PARFUM POUDRE": 6300,
-    "Silver Care Pâte Dent four fruit 3+": 1500,
-    "Silver Care Brosse kid brush ": 1500,
   };
   const updateLigne = (i, field, val) => setForm(f => ({
     ...f,
@@ -3135,7 +3096,7 @@ function ComptabiliteAdmin() {
   };
 
   const handleEdit = (f) => {
-    setForm({ pharmacie: f.pharmacie, date: f.date, lignes: f.lignes, notes: f.notes || "" });
+    setForm({ pharmacie: f.pharmacie, date: f.date, lignes: f.lignes, notes: f.notes || "", statut: f.statut || "Non paye" });
     setEditId(f.id); setView("nouvelle");
   };
 
@@ -3155,6 +3116,11 @@ function ComptabiliteAdmin() {
   const handleDeleteDepense = async (id) => {
     if (!window.confirm("Supprimer cette depense ?")) return;
     try { await deleteDoc(doc(db, "depenses", id)); } catch(e) {}
+  };
+
+  const togglePaiement = async (facture) => {
+    const newStatut = facture.statut === "Paye" ? "Non paye" : "Paye";
+    try { await updateDoc(doc(db, "factures", facture.id), { statut: newStatut }); } catch(e) {}
   };
 
   const exportWord = (facture) => {
@@ -3387,7 +3353,7 @@ function ComptabiliteAdmin() {
       {/* Actions */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
         {[{ id: "liste", label: "📋 Liste des factures" }, { id: "nouvelle", label: editId ? "✏️ Modifier la facture" : "➕ Nouvelle facture" }].map(v => (
-          <button key={v.id} onClick={() => { setView(v.id); if(v.id==="liste"){ setEditId(null); setForm({ pharmacie:"", date: new Date().toISOString().split("T")[0], lignes:[{produit:"",quantite:"",prixUnitaire:""}], notes:"" }); }}} style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: view === v.id ? "#744210" : "white", color: view === v.id ? "white" : "#4a5568", fontWeight: 700, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+          <button key={v.id} onClick={() => { setView(v.id); if(v.id==="liste"){ setEditId(null); setForm({ pharmacie:"", date: new Date().toISOString().split("T")[0], lignes:[{produit:"",quantite:"",prixUnitaire:""}], notes:"", statut:"Non paye" }); }}} style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: view === v.id ? "#744210" : "white", color: view === v.id ? "white" : "#4a5568", fontWeight: 700, fontSize: 13, cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
             {v.label}
           </button>
         ))}
@@ -3428,7 +3394,7 @@ function ComptabiliteAdmin() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: "#744210", color: "white" }}>
-                    {["N° Facture","Date","Pharmacie","Produits","Total","Actions"].map(h => (
+                    {["N° Facture","Date","Pharmacie","Produits","Total","Paiement","Actions"].map(h => (
                       <th key={h} style={{ padding: "12px 16px", textAlign: "left", fontWeight: 700, fontSize: 12 }}>{h}</th>
                     ))}
                   </tr>
@@ -3441,6 +3407,11 @@ function ComptabiliteAdmin() {
                       <td style={{ padding: "12px 16px", fontWeight: 700, color: "#1a365d" }}>{f.pharmacie}</td>
                       <td style={{ padding: "12px 16px", color: "#718096" }}>{f.lignes?.length || 0} produit(s)</td>
                       <td style={{ padding: "12px 16px", fontWeight: 800, color: "#276749" }}>{fmt(f.total)}</td>
+                      <td style={{ padding: "12px 16px" }}>
+                        <button onClick={() => togglePaiement(f)} style={{ padding: "5px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontWeight: 800, fontSize: 11, background: f.statut === "Paye" ? "#f0fff4" : "#fff5f5", color: f.statut === "Paye" ? "#276749" : "#e53e3e" }}>
+                          {f.statut === "Paye" ? "✅ Payé" : "⏳ Non payé"}
+                        </button>
+                      </td>
                       <td style={{ padding: "12px 16px" }}>
                         <div style={{ display: "flex", gap: 6 }}>
                           <button onClick={() => exportWord(f)} style={{ padding: "5px 10px", background: "#ebf4ff", border: "1px solid #bee3f8", borderRadius: 6, cursor: "pointer", color: "#2b6cb0", fontSize: 11, fontWeight: 700 }}>📄 Word</button>
@@ -3495,6 +3466,16 @@ function ComptabiliteAdmin() {
               + Ajouter un produit
             </button>
 
+            <div style={{ marginBottom: 16 }}>
+              <label style={lS}>Statut de paiement</label>
+              <div style={{ display: "flex", gap: 10 }}>
+                {["Non paye", "Paye"].map(s => (
+                  <button key={s} type="button" onClick={() => setForm(f=>({...f, statut: s}))} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "2px solid", borderColor: form.statut === s ? (s === "Paye" ? "#276749" : "#e53e3e") : "#e2e8f0", background: form.statut === s ? (s === "Paye" ? "#f0fff4" : "#fff5f5") : "white", color: form.statut === s ? (s === "Paye" ? "#276749" : "#e53e3e") : "#4a5568", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+                    {s === "Paye" ? "✅ Payé" : "⏳ Non payé"}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div style={{ marginBottom: 16 }}>
               <label style={lS}>Notes (optionnel)</label>
               <textarea placeholder="Instructions de paiement, remarques..." value={form.notes} onChange={e => setForm(f=>({...f, notes: e.target.value}))} style={{ ...iS, height: 60, resize: "vertical" }} />
