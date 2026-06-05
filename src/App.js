@@ -26,7 +26,7 @@ const COMMERCIALES = [
   { nom: "TIE LOU CLAUDINE",  pass: "LOUDJAME12" },
   { nom: "AICHA DIALLO",      pass: "AICHADJAME13" },
   { nom: "KONAN EUNICE",      pass: "EUNIDJAME14" },
-  { nom: "DOUMBIA AMIE",      pass: "AMIDJAME15" },
+  { nom: "DACOURY GRACE",      pass: "DACDJAME15" },
 ];
 const ADMINS = [
   { login: "TOURE AWA DIA",        pass: "AWADJAME26" },
@@ -2997,6 +2997,8 @@ function ComptabiliteAdmin() {
     "55/60 EMBALLAGE SACHET BRETELLE GRAND",
     "35+10/60 EMBALLAGE SACHET BRETELLE GRAND",
     "HELAN BIMBI RIZ PARFUM POUDRE",
+    "Silver Care Pâte Dent four fruit 3+",
+    "Silver Care Brosse kid brush ",
   ];
 
   useEffect(() => {
@@ -3098,6 +3100,8 @@ function ComptabiliteAdmin() {
     "55/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
     "35+10/60 EMBALLAGE SACHET BRETELLE GRAND": 90,
     "HELAN BIMBI RIZ PARFUM POUDRE": 6300,
+    "Silver Care Pâte Dent four fruit 3+": 1500,
+    "Silver Care Brosse kid brush ": 1500,
   };
   const updateLigne = (i, field, val) => setForm(f => ({
     ...f,
