@@ -25,7 +25,7 @@ const COMMERCIALES = [
   { nom: "ANNE N'GORAN",      pass: "ANNEDJAME11" },
   { nom: "TIE LOU CLAUDINE",  pass: "LOUDJAME12" },
   { nom: "AICHA DIALLO",      pass: "AICHADJAME13" },
-  { nom: "KONAN EUNICE",      pass: "EUNIDJAME14" },
+  { nom: "GLE ANGE",      pass: "GLEDJAME14" },
   { nom: "DACOURY GRACE",      pass: "DACDJAME15" },
 ];
 const ADMINS = [
