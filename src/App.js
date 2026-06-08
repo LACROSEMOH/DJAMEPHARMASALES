@@ -25,8 +25,8 @@ const COMMERCIALES = [
   { nom: "ANNE N'GORAN",      pass: "ANNEDJAME11" },
   { nom: "TIE LOU CLAUDINE",  pass: "LOUDJAME12" },
   { nom: "AICHA DIALLO",      pass: "AICHADJAME13" },
-  { nom: "ANNIMATRICE1",      pass: "ANIMDJAME14" },
-  { nom: "ANNIMATRICE2",      pass: "ANIMDJAME15" },
+  { nom: "KONAN EUNICE",      pass: "EUNIDJAME14" },
+  { nom: "DACOURY GRACE",      pass: "DACDJAME15" },
 ];
 const ADMINS = [
   { login: "TOURE AWA DIA",        pass: "AWADJAME26" },
@@ -477,6 +477,9 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
   const [form, setForm] = useState(emptyForm());
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sansVenteMode, setSansVenteMode] = useState(false);
+  const [sansVenteDate, setSansVenteDate] = useState(new Date().toISOString().split("T")[0]);
+  const [sansVenteComment, setSansVenteComment] = useState("");
   const [formDelegue, setFormDelegue] = useState({ nom: "", pass: "" });
   const [editDelegueId, setEditDelegueId] = useState(null);
   const [commTab, setCommTab] = useState("rapport");
@@ -496,6 +499,29 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
     }
     return { ...f, lignes };
   });
+
+  const handleSansVente = async () => {
+    if (!sansVenteDate) return alert("Indiquez la date.");
+    const pharmacieVal = typeof sansVenteComment === "object" ? (sansVenteComment.pharmacie||"") : "";
+    const motifVal = typeof sansVenteComment === "object" ? (sansVenteComment.motif||"") : sansVenteComment;
+    setSaving(true);
+    try {
+      await onSubmit({
+        pharmacie: pharmacieVal || "— Journee sans vente —",
+        date: sansVenteDate,
+        commerciale: user.nom,
+        lignes: [],
+        total: 0,
+        sansVente: true,
+        commentaire: motifVal,
+      });
+      setSansVenteMode(false);
+      setSansVenteComment("");
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 3000);
+    } catch(e) { alert("Erreur: " + e.message); }
+    setSaving(false);
+  };
 
   const handleSubmit = async () => {
     if (!form.pharmacie || !form.date) return alert("Renseignez la date et le nom de la pharmacie.");
@@ -570,9 +596,13 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
                       <label style={lS}>Date *</label>
                       <input type="date" value={sansVenteDate} onChange={e => setSansVenteDate(e.target.value)} style={iS} />
                     </div>
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={lS}>Nom de la pharmacie</label>
+                      <input placeholder="ex: Pharmacie du Plateau" value={typeof sansVenteComment === "object" ? (sansVenteComment.pharmacie||"") : ""} onChange={e => setSansVenteComment(c => ({ ...(typeof c === "object" ? c : {}), pharmacie: e.target.value }))} style={iS} />
+                    </div>
                     <div style={{ marginBottom: 20 }}>
                       <label style={lS}>Commentaire / Motif</label>
-                      <textarea placeholder="Ex: Pharmacie fermee, absence du responsable..." value={sansVenteComment} onChange={e => setSansVenteComment(e.target.value)} style={{ ...iS, height: 100, resize: "vertical" }} />
+                      <textarea placeholder="Ex: Pharmacie fermee, absence du responsable..." value={typeof sansVenteComment === "object" ? (sansVenteComment.motif||"") : sansVenteComment} onChange={e => setSansVenteComment(c => ({ ...(typeof c === "object" ? c : {}), motif: e.target.value }))} style={{ ...iS, height: 100, resize: "vertical" }} />
                     </div>
                     <button onClick={handleSansVente} disabled={saving} style={{ width: "100%", padding: "14px", background: saving ? "#a0aec0" : "linear-gradient(135deg,#744210,#d69e2e)", color: "white", border: "none", borderRadius: 12, fontWeight: 900, fontSize: 15, cursor: "pointer" }}>
                       {saving ? "Envoi..." : "Envoyer le rapport sans vente"}
