@@ -27,6 +27,7 @@ const COMMERCIALES = [
   { nom: "AICHA DIALLO",      pass: "AICHADJAME13" },
   { nom: "GLE ANGE",      pass: "GLEDJAME14" },
   { nom: "AMI DOUMBIA",      pass: "DOUDJAME15" },
+  { nom: "KOUDOU MARLENE",     pass: "KOUDJAME16" },
 ];
 const ADMINS = [
   { login: "TOURE AWA DIA",        pass: "AWADJAME26" },
