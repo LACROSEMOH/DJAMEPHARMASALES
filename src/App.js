@@ -147,45 +147,6 @@ const GAMMES = {
 // UTILITAIRES
 // ═══════════════════════════════════════════════
 const fmt = (n) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
-// ================================
-// OUTILS STATISTIQUES
-// ================================
-
-const startOfWeek = (date = new Date()) => {
-  const d = new Date(date);
-  const day = d.getDay() === 0 ? 7 : d.getDay();
-  d.setDate(d.getDate() - day + 1);
-  d.setHours(0,0,0,0);
-  return d;
-};
-
-const endOfWeek = (date = new Date()) => {
-  const d = startOfWeek(date);
-  d.setDate(d.getDate() + 6);
-  d.setHours(23,59,59,999);
-  return d;
-};
-
-const startOfMonth = (date = new Date()) => {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-};
-
-const endOfMonth = (date = new Date()) => {
-  return new Date(date.getFullYear(), date.getMonth()+1,0,23,59,59,999);
-};
-
-const startOfYear = (date = new Date()) => {
-  return new Date(date.getFullYear(),0,1);
-};
-
-const endOfYear = (date = new Date()) => {
-  return new Date(date.getFullYear(),11,31,23,59,59,999);
-};
-
-const inRange = (dateString,start,end)=>{
-   const d=new Date(dateString);
-   return d>=start && d<=end;
-};
 const normalizeComm = (nom) => nom === "AICHA LACROSE" ? "AICHA DIALLO" : nom;
 const today = () => new Date().toISOString().split("T")[0];
 const emptyForm = () => ({
@@ -522,12 +483,7 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
   const [sansVenteComment, setSansVenteComment] = useState("");
   const [formDelegue, setFormDelegue] = useState({ nom: "", pass: "" });
   const [editDelegueId, setEditDelegueId] = useState(null);
-  [
- {id:"programme",label:"Programme"},
- {id:"rapport",label:"Rapport"},
- {id:"performance",label:"Performances"},
- {id:"stock",label:"Stock"}
-]
+  const [commTab, setCommTab] = useState("rapport");
 
   const mesVentes = sales.filter(s => s.commerciale === user.nom);
   const totalForm = form.lignes.reduce((s, l) => s + (parseFloat(l.quantite) || 0) * (parseFloat(l.prixUnitaire) || 0), 0);
@@ -599,18 +555,6 @@ function CommercialInterface({ user, sales, pharmacies, onSubmit, onLogout }) {
         {commTab === "programme" && (
           <ProgrammeAnimation user={user} />
         )}
-
-{commTab==="performance" && (
-
-<DashboardPerformance
-
-user={user}
-
-sales={sales}
-
-/>
-
-)}
 
         {commTab === "stock" && (
           <StockCommerciale pharmacies={pharmacies} />
